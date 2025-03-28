@@ -309,22 +309,7 @@ exports.getPublicLink = async (req, res, next) => {
  */
 exports.uploadAndCustomize = async (req, res, next) => {
   try {
-    // Check if file exists
-    if (!req.file) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Please upload a resume file'
-      });
-    }
-
-    // Check if job description exists
-    if (!req.body.jobDescription) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Please provide a job description'
-      });
-    }
-
+    // Validation is now handled by the middleware
     const userId = req.user.id;
     const file = req.file;
     const { 
@@ -346,16 +331,28 @@ exports.uploadAndCustomize = async (req, res, next) => {
 
     return res.status(202).json({
       status: 'success',
-      message: 'Resume customization in progress',
+      message: 'Resume customization has been queued',
       data: {
         resumeId: result.id,
         status: result.customizationStatus,
-        estimatedTimeSeconds: 30 // Approximate time for customization
+        jobId: result.jobId,
+        estimatedTimeSeconds: 60 // More realistic estimate
       }
     });
   } catch (error) {
-    logger.error('Upload and customize error:', error);
-    next(error);
+    logger.error(`Upload and customize controller error: ${error.message}`);
+    
+    // Use error's status code if available, otherwise default to 500
+    const statusCode = error.statusCode || 500;
+    
+    return res.status(statusCode).json({
+      status: 'fail',
+      message: error.message,
+      error: error.originalError ? {
+        type: error.originalError.name,
+        details: error.originalError.message
+      } : undefined
+    });
   }
 };
 
@@ -369,20 +366,20 @@ exports.getCustomizationStatus = async (req, res, next) => {
     
     const status = await resumeService.getCustomizationStatus(id, userId);
     
-    if (!status) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-    
     return res.status(200).json({
       status: 'success',
       data: status
     });
   } catch (error) {
-    logger.error('Get customization status error:', error);
-    next(error);
+    logger.error(`Get customization status controller error: ${error.message}`);
+    
+    // Use error's status code if available
+    const statusCode = error.statusCode || 500;
+    
+    return res.status(statusCode).json({
+      status: 'fail',
+      message: error.message
+    });
   }
 };
 
@@ -397,45 +394,34 @@ exports.downloadResume = async (req, res, next) => {
     
     const result = await resumeService.downloadResume(id, userId, version);
     
-    if (!result) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
+    // Set cache headers for better performance
+    res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
     
-    // If customization is not complete and trying to download customized version
-    if (version === 'customized' && result.status !== 'completed') {
-      return res.status(400).json({
+    // Send file as response
+    return res.send(result.fileBuffer);
+  } catch (error) {
+    logger.error(`Download resume controller error: ${error.message}`);
+    
+    // Use error's status code if available
+    const statusCode = error.statusCode || 500;
+    
+    // Special case for customization not complete
+    if (error.resumeStatus && statusCode === 400) {
+      return res.status(statusCode).json({
         status: 'fail',
-        message: `Customization ${result.status}`,
+        message: error.message,
         data: {
-          status: result.status,
-          error: result.error
+          status: error.resumeStatus,
+          error: error.resumeError
         }
       });
     }
     
-    // If we have the file buffer (for original files)
-    if (result.fileBuffer) {
-      // Set headers
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${result.resume.name}.pdf"`);
-      
-      // Send file
-      return res.send(result.fileBuffer);
-    }
-    
-    // For customized files, redirect to the S3 URL
-    // Note: In a production environment, you might want to use pre-signed URLs or other methods
-    return res.status(200).json({
-      status: 'success',
-      data: {
-        downloadUrl: result.downloadUrl
-      }
+    return res.status(statusCode).json({
+      status: 'fail',
+      message: error.message
     });
-  } catch (error) {
-    logger.error('Download resume error:', error);
-    next(error);
   }
 };

@@ -362,12 +362,10 @@ exports.uploadAndCustomize = async (data) => {
       companyName 
     } = data;
     
-    // Generate unique filename
+    // Validate file type
     const fileExtension = path.extname(file.originalname).toLowerCase();
-    const fileName = `${userId}/${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
-    
-    // Determine file type
     let fileType;
+    
     if (fileExtension === '.pdf') {
       fileType = 'pdf';
     } else if (fileExtension === '.doc') {
@@ -375,122 +373,68 @@ exports.uploadAndCustomize = async (data) => {
     } else if (fileExtension === '.docx') {
       fileType = 'docx';
     } else {
-      throw new Error('Unsupported file type. Only PDF, DOC, and DOCX files are allowed.');
+      const error = new Error('Unsupported file type. Only PDF, DOC, and DOCX files are allowed.');
+      error.statusCode = 400;
+      throw error;
     }
     
-    // Upload file to S3
-    const s3Url = await uploadFile(
-      file.buffer,
-      fileName,
-      file.mimetype
-    );
+    // Generate unique filename
+    const fileName = `${userId}/${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
     
-    // Create resume record with processing status
-    const resume = await Resume.create({
-      userId,
-      name,
-      originalFileName: file.originalname,
-      s3Key: fileName,
-      s3Url,
-      fileType,
-      fileSize: file.size,
-      isPublic: false,
-      jobDescription,
-      jobTitle,
-      companyName,
-      customizationStatus: 'processing',
-      lastModified: new Date()
-    });
-    
-    // Start asynchronous processing (using a queue system would be better)
-    this.processResumeCustomization(resume)
-      .catch(error => {
-        logger.error(`Resume customization failed for ${resume.id}:`, error);
-        // Update status to failed
-        resume.customizationStatus = 'failed';
-        resume.customizationError = error.message;
-        resume.save();
+    try {
+      // Upload file to S3
+      const s3Url = await uploadFile(
+        file.buffer,
+        fileName,
+        file.mimetype
+      );
+      
+      // Create resume record with pending status
+      const resume = await Resume.create({
+        userId,
+        name: name || file.originalname,
+        originalFileName: file.originalname,
+        s3Key: fileName,
+        s3Url,
+        fileType,
+        fileSize: file.size,
+        isPublic: false,
+        jobDescription,
+        jobTitle,
+        companyName,
+        customizationStatus: 'pending',
+        lastModified: new Date()
       });
-    
-    return {
-      id: resume.id,
-      name: resume.name,
-      customizationStatus: resume.customizationStatus
-    };
+      
+      // Import worker module and add job to queue
+      const { queueResumeCustomization } = require('../workers/resumeWorker');
+      const jobId = await queueResumeCustomization(resume.id);
+      
+      logger.info(`Resume ${resume.id} added to customization queue with job ID ${jobId}`);
+      
+      return {
+        id: resume.id,
+        name: resume.name,
+        customizationStatus: resume.customizationStatus,
+        jobId
+      };
+    } catch (uploadError) {
+      logger.error(`S3 upload error: ${uploadError.message}`);
+      
+      // Create enhanced error with more context
+      const error = new Error(`Failed to upload resume: ${uploadError.message}`);
+      error.originalError = uploadError;
+      error.statusCode = 500;
+      throw error;
+    }
   } catch (error) {
-    logger.error('Upload and customize service error:', error);
-    throw error;
-  }
-};
-
-/**
- * Process resume customization asynchronously
- */
-exports.processResumeCustomization = async (resume) => {
-  try {
-    // Convert to markdown if needed
-    if (!resume.markdownContent) {
-      // For PDF files
-      if (resume.fileType === 'pdf') {
-        // Get file from S3
-        const fileBuffer = await getFile(resume.s3Key);
-        
-        // Convert to markdown
-        const markdown = await convertPdfToMarkdown(fileBuffer);
-        
-        // Update resume with markdown content
-        resume.markdownContent = markdown;
-        await resume.save();
-      } else {
-        // For now, only PDF is supported for conversion
-        throw new Error('File type not supported for conversion. Only PDF files can be customized.');
-      }
+    logger.error(`Upload and customize service error: ${error.message}`, error);
+    
+    // Add status code if not present
+    if (!error.statusCode) {
+      error.statusCode = error.message.includes('Unsupported file type') ? 400 : 500;
     }
     
-    // Call n8n webhook
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook';
-    const axios = require('axios');
-    
-    const n8nResponse = await axios.post(
-      `${n8nWebhookUrl}/customize-resume-ai`, 
-      {
-        resumeContent: resume.markdownContent,
-        jobDescription: resume.jobDescription,
-        jobTitle: resume.jobTitle || '',
-        companyName: resume.companyName || ''
-      }
-    );
-    
-    // Store customized content
-    resume.customizedContent = n8nResponse.data.resume;
-    resume.customizationStatus = 'completed';
-    resume.customizationCompletedAt = new Date();
-    
-    // Generate PDF from customized content (this would require a PDF generation library)
-    // For now, we're just saving the markdown content
-    // In a real implementation, you would:
-    // 1. Convert the markdown to PDF
-    // 2. Upload the PDF to S3
-    // 3. Update the resume with the S3 URL
-    
-    // Simulate PDF generation and upload
-    // In a real implementation, replace this with actual PDF generation
-    const customizedFileName = `${resume.userId}/customized_${crypto.randomBytes(8).toString('hex')}.pdf`;
-    // Upload would happen here with the generated PDF
-    const customizedS3Url = `https://example-bucket.s3.amazonaws.com/${customizedFileName}`;
-    
-    // Update resume with customized PDF location (simulated for now)
-    resume.customizedS3Key = customizedFileName;
-    resume.customizedS3Url = customizedS3Url;
-    
-    await resume.save();
-    
-    return resume;
-  } catch (error) {
-    logger.error('Resume processing error:', error);
-    resume.customizationStatus = 'failed';
-    resume.customizationError = error.message;
-    await resume.save();
     throw error;
   }
 };
@@ -500,26 +444,65 @@ exports.processResumeCustomization = async (resume) => {
  */
 exports.getCustomizationStatus = async (resumeId, userId) => {
   try {
-    // Find resume
+    // Find resume with specific attributes
     const resume = await Resume.findOne({
       where: { id: resumeId, userId },
-      attributes: ['id', 'name', 'customizationStatus', 'customizationError', 
-                  'customizationCompletedAt', 'customizedS3Url']
+      attributes: [
+        'id', 
+        'name', 
+        'customizationStatus', 
+        'customizationError', 
+        'customizationCompletedAt', 
+        'customizedS3Url',
+        'jobTitle',
+        'companyName'
+      ]
     });
     
-    if (!resume) return null;
+    if (!resume) {
+      const error = new Error('Resume not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    
+    // Calculate progress percentage based on status
+    let progress = 0;
+    switch (resume.customizationStatus) {
+      case 'pending':
+        progress = 10;
+        break;
+      case 'processing':
+        progress = 50;
+        break;
+      case 'completed':
+        progress = 100;
+        break;
+      case 'failed':
+        progress = 0;
+        break;
+    }
     
     return {
       id: resume.id,
       name: resume.name,
       status: resume.customizationStatus,
+      progress,
       error: resume.customizationError,
       completedAt: resume.customizationCompletedAt,
+      jobTitle: resume.jobTitle,
+      companyName: resume.companyName,
       canDownload: resume.customizationStatus === 'completed',
-      downloadUrl: resume.customizationStatus === 'completed' ? resume.customizedS3Url : null
+      downloadUrl: resume.customizationStatus === 'completed' ? 
+        `/api/v1/resumes/${resume.id}/download?version=customized` : null
     };
   } catch (error) {
-    logger.error('Get customization status error:', error);
+    logger.error(`Get customization status error: ${error.message}`);
+    
+    // Add status code if not present
+    if (!error.statusCode) {
+      error.statusCode = 500;
+    }
+    
     throw error;
   }
 };
@@ -534,42 +517,69 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
       where: { id: resumeId, userId }
     });
     
-    if (!resume) return null;
+    if (!resume) {
+      const error = new Error('Resume not found');
+      error.statusCode = 404;
+      throw error;
+    }
     
     // Determine which version to download
     if (version === 'customized') {
       // Check if customized version is available
       if (resume.customizationStatus !== 'completed') {
-        return {
-          resume,
-          status: resume.customizationStatus,
-          error: resume.customizationError || 'Customization not completed',
-          fileBuffer: null
-        };
+        const error = new Error(`Cannot download customized resume: Status is ${resume.customizationStatus}`);
+        error.statusCode = 400;
+        error.resumeStatus = resume.customizationStatus;
+        error.resumeError = resume.customizationError;
+        throw error;
       }
       
-      // Get customized file from S3
-      // This would retrieve the file buffer from S3 using the customizedS3Key
-      // For now, return the S3 URL
-      return {
-        resume,
-        status: 'completed',
-        downloadUrl: resume.customizedS3Url,
-        fileBuffer: null  // In real implementation, this would be the file buffer
-      };
+      // Get file from S3 (standardized for both original and customized)
+      try {
+        const fileBuffer = await getFile(resume.customizedS3Key);
+        
+        return {
+          resume,
+          fileBuffer,
+          contentType: 'application/pdf',
+          fileName: `${resume.name}_customized.pdf`
+        };
+      } catch (s3Error) {
+        logger.error(`S3 download error for customized resume: ${s3Error.message}`);
+        const error = new Error(`Failed to download customized resume: ${s3Error.message}`);
+        error.statusCode = 500;
+        error.originalError = s3Error;
+        throw error;
+      }
     } else {
       // Get original file from S3
-      const fileBuffer = await getFile(resume.s3Key);
-      
-      return {
-        resume,
-        status: 'completed',
-        downloadUrl: resume.s3Url,
-        fileBuffer
-      };
+      try {
+        const fileBuffer = await getFile(resume.s3Key);
+        
+        return {
+          resume,
+          fileBuffer,
+          contentType: resume.fileType === 'pdf' ? 'application/pdf' : 
+                      resume.fileType === 'doc' ? 'application/msword' : 
+                      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          fileName: resume.originalFileName || `${resume.name}.${resume.fileType}`
+        };
+      } catch (s3Error) {
+        logger.error(`S3 download error for original resume: ${s3Error.message}`);
+        const error = new Error(`Failed to download original resume: ${s3Error.message}`);
+        error.statusCode = 500;
+        error.originalError = s3Error;
+        throw error;
+      }
     }
   } catch (error) {
-    logger.error('Download resume error:', error);
+    logger.error(`Download resume error: ${error.message}`);
+    
+    // Add status code if not present
+    if (!error.statusCode) {
+      error.statusCode = 500;
+    }
+    
     throw error;
   }
 };

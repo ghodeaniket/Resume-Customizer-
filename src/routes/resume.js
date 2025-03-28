@@ -1,6 +1,7 @@
 const express = require('express');
 const resumeController = require('../controllers/resumeController');
 const authMiddleware = require('../middleware/authMiddleware');
+const validationMiddleware = require('../middleware/validationMiddleware');
 const multer = require('multer');
 
 // Configure multer for file uploads
@@ -91,7 +92,12 @@ router.use(authMiddleware.protect);
  *       400:
  *         description: Invalid file format, missing file, or missing job description
  */
-router.post('/customize', upload.single('file'), resumeController.uploadAndCustomize);
+router.post(
+  '/customize', 
+  upload.single('file'), 
+  validationMiddleware.validateCustomizeRequest,
+  resumeController.uploadAndCustomize
+);
 
 /**
  * @swagger
@@ -131,6 +137,10 @@ router.post('/customize', upload.single('file'), resumeController.uploadAndCusto
  *                     status:
  *                       type: string
  *                       enum: [pending, processing, completed, failed]
+ *                     progress:
+ *                       type: integer
+ *                       minimum: 0
+ *                       maximum: 100
  *                     error:
  *                       type: string
  *                     completedAt:
@@ -143,7 +153,11 @@ router.post('/customize', upload.single('file'), resumeController.uploadAndCusto
  *       404:
  *         description: Resume not found
  */
-router.get('/:id/status', resumeController.getCustomizationStatus);
+router.get(
+  '/:id/status', 
+  validationMiddleware.validateResumeId,
+  resumeController.getCustomizationStatus
+);
 
 /**
  * @swagger
@@ -181,6 +195,10 @@ router.get('/:id/status', resumeController.getCustomizationStatus);
  *       404:
  *         description: Resume not found
  */
-router.get('/:id/download', resumeController.downloadResume);
+router.get(
+  '/:id/download', 
+  validationMiddleware.validateDownloadRequest,
+  resumeController.downloadResume
+);
 
 module.exports = router;

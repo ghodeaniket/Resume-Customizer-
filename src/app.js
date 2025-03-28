@@ -16,8 +16,8 @@ const authRoutes = require('./routes/auth');
 const resumeRoutes = require('./routes/resume');
 const n8nRoutes = require('./routes/n8n');
 
-// Load environment variables
-dotenv.config();
+// Load environment variables with validation
+require('./config/env');
 
 // Initialize Express app
 const app = express();
@@ -25,6 +25,9 @@ const PORT = process.env.PORT || 3000;
 
 // Connect to database
 testConnection();
+
+// Initialize resume customization worker
+require('./workers/resumeWorker');
 
 // Connect Prometheus if in production
 if (process.env.NODE_ENV === 'production') {

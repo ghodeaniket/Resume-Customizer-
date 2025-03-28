@@ -17,9 +17,15 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
-      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/
-      - N8N_API_KEY=${N8N_API_KEY}
+      - AWS_BUCKET_NAME=${AWS_S3_BUCKET}
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook
+      - N8N_WEBHOOK_PATH=customize-resume-ai
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - PUBLIC_URL=http://localhost:3000
+      - CUSTOMIZATION_TIMEOUT_MS=120000
+      - CUSTOMIZATION_MAX_RETRIES=3
       - LOG_LEVEL=debug
     volumes:
       - ./:/usr/src/app
@@ -28,6 +34,7 @@ services:
       - resume-customizer-network
     depends_on:
       - postgres
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -86,6 +93,23 @@ services:
     depends_on:
       - postgres
       
+  # Redis for job queue
+  redis:
+    image: redis:alpine
+    container_name: resume-customizer-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - resume-customizer-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      
   # Adminer for database management (optional)
   adminer:
     image: adminer:latest
@@ -108,4 +132,6 @@ volumes:
   postgres-data:
     driver: local
   n8n-data:
+    driver: local
+  redis-data:
     driver: local

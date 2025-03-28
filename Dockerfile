@@ -6,8 +6,19 @@ WORKDIR /usr/src/app
 # Add Docker gRPC health probe
 RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.17/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
-# Add curl for healthcheck
-RUN apk --no-cache add curl
+# Add curl for healthcheck and dependencies for Puppeteer
+RUN apk --no-cache add curl \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    # Dependencies for Bull/Redis
+    redis
+# Set environment variables for Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # ---- Dependencies ----
 FROM base AS dependencies
