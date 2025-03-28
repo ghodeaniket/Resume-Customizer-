@@ -27,4 +27,7 @@ build
 
 # Temp files
 tmp/
-temp/
+temp/-e 
+# Test files
+sample-resume.pdf
+test-resume.txt
