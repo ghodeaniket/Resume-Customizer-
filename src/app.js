@@ -32,8 +32,16 @@ if (process.env.NODE_ENV !== 'development') {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connect to database
+// Connect to database (if not in mock mode)
 testConnection();
+
+// Test S3 connection (if not in mock mode)
+const { testConnection: testS3Connection } = require('./config/s3');
+try {
+  testS3Connection();
+} catch (error) {
+  logger.warn(`S3 connection test skipped: ${error.message}`);
+}
 
 // Initialize resume customization worker in development conditionally
 try {

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
+    "dev:mock": "MOCK_SERVICES=true nodemon src/app.js",
     "test": "jest",
     "lint": "eslint .",
     "db:migrate": "sequelize db:migrate",

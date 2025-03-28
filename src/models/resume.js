@@ -1,8 +1,35 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 const User = require('./user');
+const crypto = require('crypto');
 
-const Resume = sequelize.define('Resume', {
+// Create a mock Resume model for development without database
+const createMockResume = () => {
+  return {
+    id: crypto.randomUUID(),
+    findAll: async () => [],
+    findOne: async () => null,
+    findByPk: async () => null,
+    create: async (data) => ({
+      id: crypto.randomUUID(),
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }),
+    belongsTo: () => {},
+    hasMany: () => {},
+    getUrl: function() {
+      return this.s3Url;
+    },
+    getCustomizedUrl: function() {
+      return this.customizedS3Url;
+    },
+    findByUser: async () => []
+  };
+};
+
+// Use real Sequelize model if available, otherwise use mock
+const Resume = sequelize ? sequelize.define('Resume', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -81,25 +108,28 @@ const Resume = sequelize.define('Resume', {
   }
 }, {
   timestamps: true
-});
+}) : createMockResume();
 
-// Establish relationship with User
-Resume.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-User.hasMany(Resume, { foreignKey: 'userId', as: 'resumes' });
+// Add methods and relationships only if sequelize exists
+if (sequelize) {
+  // Establish relationship with User
+  Resume.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+  User.hasMany(Resume, { foreignKey: 'userId', as: 'resumes' });
 
-// Instance method to get resume URL
-Resume.prototype.getUrl = function() {
-  return this.s3Url;
-};
+  // Instance method to get resume URL
+  Resume.prototype.getUrl = function() {
+    return this.s3Url;
+  };
 
-// Instance method to get customized resume URL
-Resume.prototype.getCustomizedUrl = function() {
-  return this.customizedS3Url;
-};
+  // Instance method to get customized resume URL
+  Resume.prototype.getCustomizedUrl = function() {
+    return this.customizedS3Url;
+  };
 
-// Class method to find resumes by user
-Resume.findByUser = async function(userId) {
-  return await this.findAll({ where: { userId } });
-};
+  // Class method to find resumes by user
+  Resume.findByUser = async function(userId) {
+    return await this.findAll({ where: { userId } });
+  };
+}
 
 module.exports = Resume;

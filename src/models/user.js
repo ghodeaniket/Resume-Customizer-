@@ -1,8 +1,26 @@
 const { DataTypes } = require('sequelize');
 const bcrypt = require('bcrypt');
 const { sequelize } = require('../config/database');
+const crypto = require('crypto');
 
-const User = sequelize.define('User', {
+// Create a mock User model for development without database
+const createMockUser = () => {
+  return {
+    id: crypto.randomUUID(),
+    findByEmail: async () => null,
+    findOne: async () => null,
+    findByPk: async () => null,
+    create: async (data) => ({
+      id: crypto.randomUUID(),
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+  };
+};
+
+// Use real Sequelize model if available, otherwise use mock
+const User = sequelize ? sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -55,16 +73,19 @@ const User = sequelize.define('User', {
       }
     }
   }
-});
+}) : createMockUser();
 
-// Instance method to check password
-User.prototype.isPasswordValid = async function(password) {
-  return await bcrypt.compare(password, this.password);
-};
+// Add methods only if sequelize exists
+if (sequelize) {
+  // Instance method to check password
+  User.prototype.isPasswordValid = async function(password) {
+    return await bcrypt.compare(password, this.password);
+  };
 
-// Class method to find user by email
-User.findByEmail = async function(email) {
-  return await this.findOne({ where: { email } });
-};
+  // Class method to find user by email
+  User.findByEmail = async function(email) {
+    return await this.findOne({ where: { email } });
+  };
+}
 
 module.exports = User;
