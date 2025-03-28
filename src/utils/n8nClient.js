@@ -147,8 +147,58 @@ if (useMockN8n) {
           
           logger.info('Resume customization request successful');
           
-          // Return the response data
-          return response.data;
+          // Handle different response types more robustly
+          let processedResponse = {};
+          
+          // Check response type and format
+          if (response && response.data) {
+            if (typeof response.data === 'string') {
+              try {
+                // If the response is a JSON string, parse it
+                processedResponse = JSON.parse(response.data);
+              } catch (parseError) {
+                // If it can't be parsed as JSON, treat it as raw markdown
+                logger.info('Response is not JSON, treating as raw content');
+                processedResponse = { resume: response.data };
+              }
+            } else if (typeof response.data === 'object') {
+              // If response is already an object
+              processedResponse = response.data;
+              
+              // If the object doesn't have a resume field, but has some other text content
+              // that could be markdown, create a resume field with that content
+              if (!processedResponse.resume) {
+                // Try to find any field that might contain the resume content
+                const possibleContentFields = Object.keys(processedResponse).filter(key => 
+                  typeof processedResponse[key] === 'string' && 
+                  processedResponse[key].length > 100
+                );
+                
+                if (possibleContentFields.length > 0) {
+                  // Use the first substantial text field as resume content
+                  processedResponse = { 
+                    resume: processedResponse[possibleContentFields[0]],
+                    originalResponse: processedResponse
+                  };
+                } else {
+                  // If no suitable fields found, create an empty resume field
+                  // and keep the original response for reference
+                  processedResponse = { 
+                    resume: JSON.stringify(processedResponse),
+                    originalResponse: processedResponse
+                  };
+                }
+              }
+            } else {
+              // If it's neither string nor object (unlikely), log and create a default
+              logger.warn(`Unexpected response type: ${typeof response.data}`);
+              processedResponse = { resume: String(response.data) };
+            }
+          } else {
+            throw new Error('Empty response from N8N webhook');
+          }
+          
+          return processedResponse;
         } catch (error) {
           logger.error(`Error calling n8n webhook: ${error.message}`);
           

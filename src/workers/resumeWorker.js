@@ -69,16 +69,52 @@ if (!resumeQueue) {
       // Step 3: Store customized content
       logger.info(`Storing customized content for resume ${resumeId}`);
       
-      // Validate the response from N8N
-      if (!n8nResponse || !n8nResponse.resume) {
-        logger.error(`Invalid response from N8N: ${JSON.stringify(n8nResponse)}`);
-        throw new Error('Invalid response from N8N workflow: Missing resume content');
+      // Extract resume content from N8N response - handle different response formats
+      let resumeContent = '';
+      
+      try {
+        if (typeof n8nResponse === 'string') {
+          // Try to parse the response as JSON if it's a string
+          try {
+            const parsedResponse = JSON.parse(n8nResponse);
+            if (parsedResponse && parsedResponse.resume) {
+              resumeContent = parsedResponse.resume;
+            } else {
+              // If no resume field but looks like markdown, use the whole parsed response
+              resumeContent = JSON.stringify(parsedResponse);
+            }
+          } catch (parseError) {
+            // Not valid JSON, might be direct markdown content
+            logger.info('N8N response is not JSON, using as raw content');
+            resumeContent = n8nResponse;
+          }
+        } else if (n8nResponse && typeof n8nResponse === 'object') {
+          // Handle object response
+          if (n8nResponse.resume) {
+            resumeContent = n8nResponse.resume;
+          } else {
+            // If no resume field, stringify the whole response
+            resumeContent = JSON.stringify(n8nResponse);
+          }
+        } else {
+          throw new Error('Unexpected response format from N8N');
+        }
+        
+        // Check if response is valid
+        if (!resumeContent || resumeContent.trim() === '') {
+          throw new Error('Empty content received from N8N');
+        }
+        
+        // For debugging: Log a portion of the content
+        logger.info(`Extracted resume content (first 100 chars): ${resumeContent.substring(0, 100)}...`);
+        
+        // Store the content
+        resume.customizedContent = resumeContent;
+      } catch (contentError) {
+        logger.error(`Failed to extract resume content: ${contentError.message}`);
+        logger.error(`Raw N8N response: ${JSON.stringify(n8nResponse)}`);
+        throw new Error(`Failed to process N8N response: ${contentError.message}`);
       }
-      
-      // Log the first 100 characters of the response for debugging
-      logger.info(`N8N response (first 100 chars): ${n8nResponse.resume.substring(0, 100)}...`);
-      
-      resume.customizedContent = n8nResponse.resume;
       
       // Step 4: Generate PDF from customized content
       logger.info(`Generating PDF for customized resume ${resumeId}`);
