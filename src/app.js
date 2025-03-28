@@ -15,9 +15,18 @@ const { connectPrometheus, prometheusMiddleware } = require('./monitoring/promet
 const authRoutes = require('./routes/auth');
 const resumeRoutes = require('./routes/resume');
 const n8nRoutes = require('./routes/n8n');
+const testRoutes = require('./routes/test');
 
-// Load environment variables with validation
-require('./config/env');
+// Load environment variables first
+dotenv.config();
+
+// Only validate environment variables if not in development mode
+// This allows for easier local testing
+if (process.env.NODE_ENV !== 'development') {
+  require('./config/env');
+} else {
+  console.log('Running in development mode, skipping environment validation');
+}
 
 // Initialize Express app
 const app = express();
@@ -26,8 +35,12 @@ const PORT = process.env.PORT || 3000;
 // Connect to database
 testConnection();
 
-// Initialize resume customization worker
-require('./workers/resumeWorker');
+// Initialize resume customization worker in development conditionally
+try {
+  require('./workers/resumeWorker');
+} catch (error) {
+  logger.warn(`Worker initialization skipped: ${error.message}`);
+}
 
 // Connect Prometheus if in production
 if (process.env.NODE_ENV === 'production') {
@@ -58,6 +71,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // API Routes (v1)
+app.use('/api/v1/test', testRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/resumes', resumeRoutes);
 app.use('/api/v1/n8n', n8nRoutes);

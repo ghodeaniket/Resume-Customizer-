@@ -1,4 +1,5 @@
 const Resume = require('../models/resume');
+const { sequelize } = require('../config/database');
 const { uploadFile, getFile, deleteFile } = require('../config/s3');
 const convertPdfToMarkdown = require('../utils/convertPdfToMarkdown');
 const logger = require('../utils/logger');
@@ -380,6 +381,17 @@ exports.uploadAndCustomize = async (data) => {
     
     // Generate unique filename
     const fileName = `${userId}/${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
+    
+    // For development mode without dependencies
+    if (process.env.NODE_ENV === 'development' && (!sequelize || process.env.MOCK_SERVICES === 'true')) {
+      logger.info('Running in development mode with mock services');
+      return {
+        id: crypto.randomUUID(),
+        name: name || file.originalname,
+        customizationStatus: 'pending',
+        jobId: 'mock-job-id'
+      };
+    }
     
     try {
       // Upload file to S3
