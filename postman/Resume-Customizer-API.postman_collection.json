@@ -1,0 +1,688 @@
+{
+	"info": {
+		"_postman_id": "c98a7e1a-5bc1-4c7a-b8e7-8f7cbcdf0e3e",
+		"name": "Resume Customizer API",
+		"description": "A Postman collection for testing Resume Customizer API endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();",
+									"",
+									"if (response.data && response.data.token) {",
+									"    pm.environment.set('auth_token', response.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login a user and get authentication token"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Get current user information"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"Johnny\",\n    \"lastName\": \"Doe\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Update user profile information"
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"currentPassword\": \"Password123!\",\n    \"newPassword\": \"NewPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/change-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"change-password"
+							]
+						},
+						"description": "Change user password"
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john.doe@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/forgot-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"forgot-password"
+							]
+						},
+						"description": "Request password reset token"
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"password\": \"NewPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/reset-password/{{reset_token}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"reset-password",
+								"{{reset_token}}"
+							]
+						},
+						"description": "Reset password using token"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Logout user"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints"
+		},
+		{
+			"name": "Resumes",
+			"item": [
+				{
+					"name": "Get All Resumes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/resumes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes"
+							]
+						},
+						"description": "Get all resumes for the current user"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Resume",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/resumes/{{resume_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes",
+								"{{resume_id}}"
+							]
+						},
+						"description": "Get a specific resume by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Resume",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();",
+									"",
+									"if (response.data && response.data.resume && response.data.resume.id) {",
+									"    pm.environment.set('resume_id', response.data.resume.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/path/to/resume.pdf"
+								},
+								{
+									"key": "name",
+									"value": "My Professional Resume",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "My updated professional resume for software developer positions",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/resumes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes"
+							]
+						},
+						"description": "Upload a new resume"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Resume",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Resume Title\",\n    \"description\": \"An updated description for my resume\",\n    \"isPublic\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/resumes/{{resume_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes",
+								"{{resume_id}}"
+							]
+						},
+						"description": "Update resume details"
+					},
+					"response": []
+				},
+				{
+					"name": "Convert to Markdown",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/resumes/{{resume_id}}/convert",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes",
+								"{{resume_id}}",
+								"convert"
+							]
+						},
+						"description": "Convert resume to markdown format"
+					},
+					"response": []
+				},
+				{
+					"name": "Customize Resume",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"jobDescription\": \"We are looking for a skilled software developer with experience in Node.js, React, and AWS. The ideal candidate will have 3+ years of experience building scalable web applications and working with RESTful APIs.\",\n    \"jobTitle\": \"Senior Software Developer\",\n    \"companyName\": \"Tech Innovations Inc.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/resumes/{{resume_id}}/customize",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes",
+								"{{resume_id}}",
+								"customize"
+							]
+						},
+						"description": "Customize resume based on job description"
+					},
+					"response": []
+				},
+				{
+					"name": "Share Resume",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isPublic\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/resumes/{{resume_id}}/share",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes",
+								"{{resume_id}}",
+								"share"
+							]
+						},
+						"description": "Make resume public or private"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Public Link",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/resumes/{{resume_id}}/public-link",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes",
+								"{{resume_id}}",
+								"public-link"
+							]
+						},
+						"description": "Get public link for shared resume"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Resume",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/resumes/{{resume_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"resumes",
+								"{{resume_id}}"
+							]
+						},
+						"description": "Delete a resume"
+					},
+					"response": []
+				}
+			],
+			"description": "Resume management endpoints"
+		},
+		{
+			"name": "n8n",
+			"item": [
+				{
+					"name": "Trigger Workflow",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();",
+									"",
+									"if (response.data && response.data.executionId) {",
+									"    pm.environment.set('execution_id', response.data.executionId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"resumeId\": \"{{resume_id}}\",\n    \"jobDescription\": \"We are looking for a skilled software developer with experience in Node.js, React, and AWS. The ideal candidate will have 3+ years of experience building scalable web applications and working with RESTful APIs.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/n8n/trigger/resume-customizer",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"n8n",
+								"trigger",
+								"resume-customizer"
+							]
+						},
+						"description": "Trigger an n8n workflow"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workflow Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/n8n/status/{{execution_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"n8n",
+								"status",
+								"{{execution_id}}"
+							]
+						},
+						"description": "Get workflow execution status"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workflows",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/n8n/workflows",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"n8n",
+								"workflows"
+							]
+						},
+						"description": "Get all available workflows"
+					},
+					"response": []
+				}
+			],
+			"description": "n8n integration endpoints"
+		},
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/../health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"..",
+						"health"
+					]
+				},
+				"description": "Check if the server is running"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000/api/v1",
+			"type": "string"
+		}
+	]
+}

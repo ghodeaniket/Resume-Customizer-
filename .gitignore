@@ -1,0 +1,30 @@
+# Dependency directories
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# Compiled output
+dist
+build
+
+# OS files
+.DS_Store
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Temp files
+tmp/
+temp/

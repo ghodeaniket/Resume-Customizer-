@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: resume-customizer-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgres://username:password@postgres:5432/database
+      - JWT_SECRET=jwt_development_secret
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/
+      - N8N_API_KEY=${N8N_API_KEY}
+      - LOG_LEVEL=debug
+    volumes:
+      - ./:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - resume-customizer-network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+      
+  postgres:
+    image: postgres:13-alpine
+    container_name: resume-customizer-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=username
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=database
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - resume-customizer-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U username -d database"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: resume-customizer-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_HOST=localhost
+      - N8N_EDITOR_BASE_URL=http://localhost:5678
+      - WEBHOOK_URL=http://n8n:5678/
+      - POSTGRES_DB=database
+      - POSTGRES_USER=username
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=database
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=username
+      - DB_POSTGRESDB_PASSWORD=password
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks:
+      - resume-customizer-network
+    depends_on:
+      - postgres
+      
+  # Adminer for database management (optional)
+  adminer:
+    image: adminer:latest
+    container_name: resume-customizer-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    networks:
+      - resume-customizer-network
+    depends_on:
+      - postgres
+
+networks:
+  resume-customizer-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  n8n-data:
+    driver: local
