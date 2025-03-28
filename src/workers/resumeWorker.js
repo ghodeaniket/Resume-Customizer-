@@ -1,26 +1,29 @@
-const { resumeQueue } = require('../config/queue');
-const Resume = require('../models/resume');
-const { getFile, uploadFile } = require('../config/s3');
-const convertPdfToMarkdown = require('../utils/convertPdfToMarkdown');
-const logger = require('../utils/logger');
-const n8nClient = require('../utils/n8nClient');
-const { generatePdfFromMarkdown } = require('../utils/pdfGenerator');
-const crypto = require('crypto');
+/**
+ * Resume Customization Worker
+ * 
+ * This module manages the background processing of resume customization jobs.
+ * It uses the queue service to handle job processing and coordinates between
+ * different services (storage, AI) to perform the customization workflow.
+ */
 
-// Skip worker initialization if resumeQueue is not available
-if (!resumeQueue) {
-  logger.warn('Resume queue not available. Worker will not be initialized.');
-  module.exports = {
-    queueResumeCustomization: async (resumeId) => {
-      logger.warn(`Mock queue used for resume ${resumeId}`);
-      return 'mock-job-id';
-    }
-  };
-} else {
+const Resume = require('../models/resume');
+const logger = require('../utils/logger');
+const crypto = require('crypto');
+const convertPdfToMarkdown = require('../utils/convertPdfToMarkdown');
+const { generatePdfFromMarkdown } = require('../utils/pdfGenerator');
+const services = require('../services');
+
+// Get required services
+const queueService = services.queue();
+const storageService = services.storage();
+const aiService = services.ai();
+
+// Initialize worker
+try {
   /**
    * Process resume customization job
    */
-  resumeQueue.process(async (job) => {
+  queueService.registerProcessor('resume-customization', async (job) => {
     const { resumeId } = job.data;
     logger.info(`Processing resume customization job ${job.id} for resume ${resumeId}`);
     
@@ -42,8 +45,8 @@ if (!resumeQueue) {
         
         // For PDF files
         if (resume.fileType === 'pdf') {
-          // Get file from S3
-          const fileBuffer = await getFile(resume.s3Key);
+          // Get file from storage
+          const fileBuffer = await storageService.getFile(resume.s3Key);
           
           // Convert to markdown
           const markdown = await convertPdfToMarkdown(fileBuffer);
@@ -57,9 +60,9 @@ if (!resumeQueue) {
         }
       }
       
-      // Step 2: Call n8n webhook for AI customization
-      logger.info(`Sending resume ${resumeId} to n8n for customization`);
-      const n8nResponse = await n8nClient.customizeResume({
+      // Step 2: Call AI service for customization
+      logger.info(`Sending resume ${resumeId} for AI customization`);
+      const aiResponse = await aiService.customizeResume({
         resumeContent: resume.markdownContent,
         jobDescription: resume.jobDescription,
         jobTitle: resume.jobTitle || '',
@@ -69,14 +72,14 @@ if (!resumeQueue) {
       // Step 3: Store customized content
       logger.info(`Storing customized content for resume ${resumeId}`);
       
-      // Extract resume content from N8N response - handle different response formats
+      // Extract resume content from AI response
       let resumeContent = '';
       
       try {
-        if (typeof n8nResponse === 'string') {
+        if (typeof aiResponse === 'string') {
           // Try to parse the response as JSON if it's a string
           try {
-            const parsedResponse = JSON.parse(n8nResponse);
+            const parsedResponse = JSON.parse(aiResponse);
             if (parsedResponse && parsedResponse.resume) {
               resumeContent = parsedResponse.resume;
             } else {
@@ -85,24 +88,24 @@ if (!resumeQueue) {
             }
           } catch (parseError) {
             // Not valid JSON, might be direct markdown content
-            logger.info('N8N response is not JSON, using as raw content');
-            resumeContent = n8nResponse;
+            logger.info('AI response is not JSON, using as raw content');
+            resumeContent = aiResponse;
           }
-        } else if (n8nResponse && typeof n8nResponse === 'object') {
+        } else if (aiResponse && typeof aiResponse === 'object') {
           // Handle object response
-          if (n8nResponse.resume) {
-            resumeContent = n8nResponse.resume;
+          if (aiResponse.resume) {
+            resumeContent = aiResponse.resume;
           } else {
             // If no resume field, stringify the whole response
-            resumeContent = JSON.stringify(n8nResponse);
+            resumeContent = JSON.stringify(aiResponse);
           }
         } else {
-          throw new Error('Unexpected response format from N8N');
+          throw new Error('Unexpected response format from AI service');
         }
         
         // Check if response is valid
         if (!resumeContent || resumeContent.trim() === '') {
-          throw new Error('Empty content received from N8N');
+          throw new Error('Empty content received from AI service');
         }
         
         // For debugging: Log a portion of the content
@@ -112,18 +115,18 @@ if (!resumeQueue) {
         resume.customizedContent = resumeContent;
       } catch (contentError) {
         logger.error(`Failed to extract resume content: ${contentError.message}`);
-        logger.error(`Raw N8N response: ${JSON.stringify(n8nResponse)}`);
-        throw new Error(`Failed to process N8N response: ${contentError.message}`);
+        logger.error(`Raw AI response: ${JSON.stringify(aiResponse)}`);
+        throw new Error(`Failed to process AI response: ${contentError.message}`);
       }
       
       // Step 4: Generate PDF from customized content
       logger.info(`Generating PDF for customized resume ${resumeId}`);
       const pdfBuffer = await generatePdfFromMarkdown(resume.customizedContent);
       
-      // Step 5: Upload customized PDF to S3
-      logger.info(`Uploading customized PDF for resume ${resumeId} to S3`);
+      // Step 5: Upload customized PDF to storage
+      logger.info(`Uploading customized PDF for resume ${resumeId}`);
       const customizedFileName = `${resume.userId}/customized_${crypto.randomBytes(8).toString('hex')}.pdf`;
-      const customizedS3Url = await uploadFile(
+      const customizedS3Url = await storageService.uploadFile(
         pdfBuffer,
         customizedFileName,
         'application/pdf'
@@ -164,47 +167,39 @@ if (!resumeQueue) {
     }
   });
 
-  // Log queue events
-  resumeQueue.on('active', job => {
-    logger.info(`Resume customization job ${job.id} has started processing`);
-  });
-
-  resumeQueue.on('completed', (job, result) => {
-    logger.info(`Resume customization job ${job.id} has been completed`);
-  });
-
-  resumeQueue.on('failed', (job, err) => {
-    logger.error(`Resume customization job ${job.id} has failed with error: ${err.message}`);
-  });
-
-  /**
-   * Add resume customization job to queue
-   */
-  const queueResumeCustomization = async (resumeId) => {
-    try {
-      const job = await resumeQueue.add(
-        { resumeId },
-        {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 2000
-          },
-          removeOnComplete: true,
-          removeOnFail: false
-        }
-      );
-      
-      logger.info(`Resume customization job ${job.id} added to queue for resume ${resumeId}`);
-      
-      return job.id;
-    } catch (error) {
-      logger.error(`Failed to queue resume customization for ${resumeId}: ${error.message}`);
-      throw error;
-    }
-  };
-
-  module.exports = {
-    queueResumeCustomization
-  };
+  logger.info('Resume customization worker initialized successfully');
+} catch (error) {
+  logger.error(`Failed to initialize resume customization worker: ${error.message}`);
 }
+
+/**
+ * Add resume customization job to queue
+ */
+const queueResumeCustomization = async (resumeId) => {
+  try {
+    const job = await queueService.addJob(
+      'resume-customization',
+      { resumeId },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000
+        },
+        removeOnComplete: true,
+        removeOnFail: false
+      }
+    );
+    
+    logger.info(`Resume customization job ${job.id} added to queue for resume ${resumeId}`);
+    
+    return job.id;
+  } catch (error) {
+    logger.error(`Failed to queue resume customization for ${resumeId}: ${error.message}`);
+    throw error;
+  }
+};
+
+module.exports = {
+  queueResumeCustomization
+};

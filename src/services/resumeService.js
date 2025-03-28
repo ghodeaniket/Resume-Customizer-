@@ -1,10 +1,10 @@
 const Resume = require('../models/resume');
 const { sequelize } = require('../config/database');
-const { uploadFile, getFile, deleteFile } = require('../config/s3');
 const convertPdfToMarkdown = require('../utils/convertPdfToMarkdown');
 const logger = require('../utils/logger');
 const path = require('path');
 const crypto = require('crypto');
+const services = require('./index');
 
 /**
  * Get all resumes for a user
@@ -89,8 +89,11 @@ exports.createResume = async (resumeData) => {
       throw error;
     }
     
-    // Upload file to S3
-    const s3Url = await uploadFile(
+    // Get storage service
+    const storageService = services.storage();
+    
+    // Upload file to storage
+    const s3Url = await storageService.uploadFile(
       file.buffer,
       fileName,
       file.mimetype
@@ -180,8 +183,11 @@ exports.deleteResume = async (resumeId, userId) => {
     
     if (!resume) return false;
     
-    // Delete file from S3
-    await deleteFile(resume.s3Key);
+    // Get storage service
+    const storageService = services.storage();
+    
+    // Delete file from storage
+    await storageService.deleteFile(resume.s3Key);
     
     // Delete resume from database
     await resume.destroy();
@@ -217,8 +223,11 @@ exports.convertResumeToMarkdown = async (resumeId, userId) => {
       };
     }
     
-    // Get file from S3
-    const fileBuffer = await getFile(resume.s3Key);
+    // Get storage service
+    const storageService = services.storage();
+    
+    // Get file from storage
+    const fileBuffer = await storageService.getFile(resume.s3Key);
     
     // Convert to markdown
     let markdown;
@@ -363,6 +372,9 @@ exports.uploadAndCustomize = async (data) => {
       companyName 
     } = data;
     
+    // Get the storage service
+    const storageService = services.storage();
+    
     // Validate file type
     const fileExtension = path.extname(file.originalname).toLowerCase();
     let fileType;
@@ -382,56 +394,9 @@ exports.uploadAndCustomize = async (data) => {
     // Generate unique filename
     const fileName = `${userId}/${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
     
-    // For development mode with mock services enabled
-    if (process.env.NODE_ENV === 'development' && process.env.MOCK_SERVICES === 'true') {
-      logger.info('Running in development mode with mock services');
-      
-      // Create a mock resume ID
-      const mockResumeId = crypto.randomUUID();
-      
-      // Store mock resume in global variable to persist between requests
-      if (!global.mockResumes) {
-        global.mockResumes = new Map();
-      }
-      
-      global.mockResumes.set(mockResumeId, {
-        id: mockResumeId,
-        userId,
-        name: name || file.originalname,
-        originalFileName: file.originalname,
-        fileType,
-        fileSize: file.size,
-        customizationStatus: 'pending',
-        jobDescription,
-        jobTitle,
-        companyName,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      
-      // After 5 seconds, update the status to "completed" to simulate processing
-      setTimeout(() => {
-        const mockResume = global.mockResumes.get(mockResumeId);
-        if (mockResume) {
-          mockResume.customizationStatus = 'completed';
-          mockResume.customizationCompletedAt = new Date();
-          mockResume.customizedS3Url = 'https://example.com/mock-customized-resume.pdf';
-          global.mockResumes.set(mockResumeId, mockResume);
-          logger.info(`Mock resume ${mockResumeId} customization completed`);
-        }
-      }, 5000);
-      
-      return {
-        id: mockResumeId,
-        name: name || file.originalname,
-        customizationStatus: 'pending',
-        jobId: 'mock-job-id'
-      };
-    }
-    
     try {
-      // Upload file to S3
-      const s3Url = await uploadFile(
+      // Upload file to storage service
+      const s3Url = await storageService.uploadFile(
         file.buffer,
         fileName,
         file.mimetype
@@ -467,7 +432,7 @@ exports.uploadAndCustomize = async (data) => {
         jobId
       };
     } catch (uploadError) {
-      logger.error(`S3 upload error: ${uploadError.message}`);
+      logger.error(`Storage upload error: ${uploadError.message}`);
       
       // Create enhanced error with more context
       const error = new Error(`Failed to upload resume: ${uploadError.message}`);
@@ -492,57 +457,7 @@ exports.uploadAndCustomize = async (data) => {
  */
 exports.getCustomizationStatus = async (resumeId, userId) => {
   try {
-    // Check for mock mode
-    if (process.env.NODE_ENV === 'development' && process.env.MOCK_SERVICES === 'true') {
-      // Check if resume exists in mock storage
-      if (global.mockResumes && global.mockResumes.has(resumeId)) {
-        const mockResume = global.mockResumes.get(resumeId);
-        
-        // Check if the user ID matches
-        if (mockResume.userId !== userId) {
-          const error = new Error('Resume not found');
-          error.statusCode = 404;
-          throw error;
-        }
-        
-        // Calculate progress percentage based on status
-        let progress = 0;
-        switch (mockResume.customizationStatus) {
-          case 'pending':
-            progress = 10;
-            break;
-          case 'processing':
-            progress = 50;
-            break;
-          case 'completed':
-            progress = 100;
-            break;
-          case 'failed':
-            progress = 0;
-            break;
-        }
-        
-        return {
-          id: mockResume.id,
-          name: mockResume.name,
-          status: mockResume.customizationStatus,
-          progress,
-          error: mockResume.customizationError,
-          completedAt: mockResume.customizationCompletedAt,
-          jobTitle: mockResume.jobTitle,
-          companyName: mockResume.companyName,
-          canDownload: mockResume.customizationStatus === 'completed',
-          downloadUrl: mockResume.customizationStatus === 'completed' ? 
-            `/api/v1/resumes/${mockResume.id}/download?version=customized` : null
-        };
-      } else {
-        const error = new Error('Resume not found');
-        error.statusCode = 404;
-        throw error;
-      }
-    }
-    
-    // Non-mock mode: Find resume in database
+    // Find resume in database
     const resume = await Resume.findOne({
       where: { id: resumeId, userId },
       attributes: [
@@ -634,7 +549,11 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
       
       // Get file from S3 (standardized for both original and customized)
       try {
-        const fileBuffer = await getFile(resume.customizedS3Key);
+        // Get storage service
+        const storageService = services.storage();
+        
+        // Get file from storage
+        const fileBuffer = await storageService.getFile(resume.customizedS3Key);
         
         return {
           resume,
@@ -652,7 +571,11 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
     } else {
       // Get original file from S3
       try {
-        const fileBuffer = await getFile(resume.s3Key);
+        // Get storage service
+        const storageService = services.storage();
+        
+        // Get file from storage
+        const fileBuffer = await storageService.getFile(resume.s3Key);
         
         return {
           resume,

@@ -38,7 +38,11 @@ const envSchema = joi.object({
   
   // Customization defaults
   CUSTOMIZATION_TIMEOUT_MS: joi.number().default(120000),
-  CUSTOMIZATION_MAX_RETRIES: joi.number().default(3)
+  CUSTOMIZATION_MAX_RETRIES: joi.number().default(3),
+  
+  // Service configuration
+  MOCK_SERVICES: joi.boolean().default(false),
+  FALLBACK_TO_MOCK: joi.boolean().default(false)
 }).unknown();
 
 // Validate environment variables
@@ -86,5 +90,9 @@ module.exports = {
   customization: {
     timeoutMs: env.CUSTOMIZATION_TIMEOUT_MS,
     maxRetries: env.CUSTOMIZATION_MAX_RETRIES
+  },
+  services: {
+    useMock: env.MOCK_SERVICES === 'true',
+    fallbackToMock: env.FALLBACK_TO_MOCK === 'true'
   }
 };

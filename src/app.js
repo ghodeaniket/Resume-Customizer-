@@ -10,6 +10,8 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { connectPrometheus, prometheusMiddleware } = require('./monitoring/prometheus');
+const serviceFactory = require('./utils/serviceFactory');
+const services = require('./services');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -32,22 +34,49 @@ if (process.env.NODE_ENV !== 'development') {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connect to database (if not in mock mode)
-testConnection();
+// Check if we're using mock services
+const { useMockServices } = services.serviceFactory;
+const isMockMode = useMockServices();
 
-// Test S3 connection (if not in mock mode)
-const { testConnection: testS3Connection } = require('./config/s3');
-try {
-  testS3Connection();
-} catch (error) {
-  logger.warn(`S3 connection test skipped: ${error.message}`);
+if (isMockMode) {
+  logger.warn('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  logger.warn('!!                MOCK MODE ACTIVE                  !!');
+  logger.warn('!! Application is running with mock service         !!');
+  logger.warn('!! implementations. Data will not persist beyond    !!');
+  logger.warn('!! server restart. This mode is for development.    !!');
+  logger.warn('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
 }
 
-// Initialize resume customization worker in development conditionally
+// Connect to database 
+testConnection();
+
+// Initialize services
 try {
+  // Initialize storage service
+  const storageService = services.storage();
+  storageService.init();
+  try {
+    storageService.testConnection();
+  } catch (error) {
+    logger.warn(`Storage service connection test error: ${error.message}`);
+  }
+  
+  // Initialize AI service
+  const aiService = services.ai();
+  aiService.init();
+  
+  // Initialize queue service
+  const queueService = services.queue();
+  queueService.init();
+  
+  // Initialize resume customization worker
   require('./workers/resumeWorker');
 } catch (error) {
-  logger.warn(`Worker initialization skipped: ${error.message}`);
+  logger.error(`Service initialization error: ${error.message}`);
+  if (process.env.NODE_ENV === 'production') {
+    // In production, we should fail fast
+    process.exit(1);
+  }
 }
 
 // Connect Prometheus if in production
