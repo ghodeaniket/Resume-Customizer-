@@ -35,6 +35,34 @@ const Resume = sequelize.define('Resume', {
   markdownContent: {
     type: DataTypes.TEXT
   },
+  customizedContent: {
+    type: DataTypes.TEXT
+  },
+  customizedS3Key: {
+    type: DataTypes.STRING
+  },
+  customizedS3Url: {
+    type: DataTypes.STRING
+  },
+  customizationStatus: {
+    type: DataTypes.ENUM('pending', 'processing', 'completed', 'failed'),
+    defaultValue: 'pending'
+  },
+  customizationError: {
+    type: DataTypes.TEXT
+  },
+  customizationCompletedAt: {
+    type: DataTypes.DATE
+  },
+  jobTitle: {
+    type: DataTypes.STRING
+  },
+  companyName: {
+    type: DataTypes.STRING
+  },
+  jobDescription: {
+    type: DataTypes.TEXT
+  },
   fileType: {
     type: DataTypes.ENUM('pdf', 'doc', 'docx'),
     allowNull: false
@@ -62,6 +90,11 @@ User.hasMany(Resume, { foreignKey: 'userId', as: 'resumes' });
 // Instance method to get resume URL
 Resume.prototype.getUrl = function() {
   return this.s3Url;
+};
+
+// Instance method to get customized resume URL
+Resume.prototype.getCustomizedUrl = function() {
+  return this.customizedS3Url;
 };
 
 // Class method to find resumes by user
