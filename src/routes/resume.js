@@ -32,7 +32,7 @@ router.use(authMiddleware.protect);
 
 /**
  * @swagger
- * /api/v1/resumes/customize:
+ * /resumes/customize:
  *   post:
  *     summary: Upload and customize resume in one step
  *     tags: [Resumes]
@@ -101,7 +101,7 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/resumes/{id}/status:
+ * /resumes/{id}/status:
  *   get:
  *     summary: Get customization status
  *     tags: [Resumes]
@@ -161,7 +161,7 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/resumes/{id}/download:
+ * /resumes/{id}/download:
  *   get:
  *     summary: Download resume (original or customized)
  *     tags: [Resumes]

@@ -3,7 +3,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/v1/test:
+ * /test:
  *   get:
  *     summary: Test if the API is working
  *     tags: [Test]

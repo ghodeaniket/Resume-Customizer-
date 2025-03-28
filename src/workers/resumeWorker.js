@@ -68,6 +68,16 @@ if (!resumeQueue) {
       
       // Step 3: Store customized content
       logger.info(`Storing customized content for resume ${resumeId}`);
+      
+      // Validate the response from N8N
+      if (!n8nResponse || !n8nResponse.resume) {
+        logger.error(`Invalid response from N8N: ${JSON.stringify(n8nResponse)}`);
+        throw new Error('Invalid response from N8N workflow: Missing resume content');
+      }
+      
+      // Log the first 100 characters of the response for debugging
+      logger.info(`N8N response (first 100 chars): ${n8nResponse.resume.substring(0, 100)}...`);
+      
       resume.customizedContent = n8nResponse.resume;
       
       // Step 4: Generate PDF from customized content

@@ -2,7 +2,12 @@ const { Sequelize } = require('sequelize');
 const logger = require('../utils/logger');
 
 // Initialize Sequelize with database connection
-const sequelize = process.env.DATABASE_URL ? new Sequelize(process.env.DATABASE_URL, {
+// Initialize Sequelize with database connection
+// In development, we ensure the connection is created even if DATABASE_URL is not explicitly set
+const sequelize = process.env.DATABASE_URL || (process.env.NODE_ENV === 'development' ? 
+  'postgres://postgres:postgres@localhost:5432/resume_customizer' : null);
+
+const sequelizeInstance = sequelize ? new Sequelize(sequelize, {
   logging: msg => logger.debug(msg),
   dialect: 'postgres',
   pool: {
@@ -15,13 +20,13 @@ const sequelize = process.env.DATABASE_URL ? new Sequelize(process.env.DATABASE_
 
 // Test the database connection
 const testConnection = async () => {
-  if (!sequelize) {
+  if (!sequelizeInstance) {
     logger.warn('No DATABASE_URL provided. Database connection will not be established.');
     return;
   }
   
   try {
-    await sequelize.authenticate();
+    await sequelizeInstance.authenticate();
     logger.info('Database connection has been established successfully.');
   } catch (error) {
     logger.error('Unable to connect to the database:', error);
@@ -34,6 +39,6 @@ const testConnection = async () => {
 };
 
 module.exports = {
-  sequelize,
+  sequelize: sequelizeInstance,
   testConnection
 };

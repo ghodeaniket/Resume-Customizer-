@@ -1,5 +1,18 @@
 const swaggerJsDoc = require('swagger-jsdoc');
 
+// Replace all /api/v1 prefixes in the paths with empty strings
+function stripApiV1Prefix(spec) {
+  if (spec.paths) {
+    const newPaths = {};
+    for (const path in spec.paths) {
+      const newPath = path.replace(/^\/api\/v1/, '');
+      newPaths[newPath] = spec.paths[path];
+    }
+    spec.paths = newPaths;
+  }
+  return spec;
+}
+
 const options = {
   definition: {
     openapi: '3.0.0',
@@ -14,7 +27,7 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:3000/api/v1',
+        url: `${process.env.PUBLIC_URL || 'http://localhost:3004'}/api/v1`,
         description: 'Development server'
       }
     ],
@@ -36,4 +49,6 @@ const options = {
   apis: ['./src/routes/*.js']
 };
 
-module.exports = swaggerJsDoc(options);
+// Generate the docs and then transform them
+const swaggerSpec = swaggerJsDoc(options);
+module.exports = stripApiV1Prefix(swaggerSpec);

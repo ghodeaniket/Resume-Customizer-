@@ -45,15 +45,18 @@ try {
 } catch (error) {
   logger.warn(`Failed to initialize Bull queue: ${error.message}`);
   
-  // Create a mock queue for development
-  if (process.env.NODE_ENV === 'development') {
-    logger.info('Creating mock queue for development');
+  // Create a mock queue only if MOCK_SERVICES is true in development
+  if (process.env.NODE_ENV === 'development' && process.env.MOCK_SERVICES === 'true') {
+    logger.info('Creating mock queue for development (MOCK_SERVICES=true)');
     resumeQueue = {
       add: async () => ({ id: 'mock-job-id' }),
       process: () => {},
       on: () => {},
       clean: () => {}
     };
+  } else if (process.env.NODE_ENV === 'development') {
+    logger.error('Failed to initialize Bull queue and MOCK_SERVICES is false. Please ensure Redis is running properly.');
+    throw new Error('Redis connection failed and mock services are disabled.');
   }
 }
 

@@ -57,7 +57,24 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Security middleware
-app.use(helmet());
+if (process.env.NODE_ENV === 'development') {
+  // Relaxed security settings for development
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'", "http://localhost:*"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "http://localhost:*"],
+        connectSrc: ["'self'", "http://localhost:*"],
+        imgSrc: ["'self'", "data:", "http://localhost:*"],
+        styleSrc: ["'self'", "'unsafe-inline'", "http://localhost:*"],
+        fontSrc: ["'self'", "data:", "http://localhost:*"]
+      }
+    }
+  }));
+} else {
+  // Strict security settings for production
+  app.use(helmet());
+}
 app.use(cors());
 
 // Rate limiting
