@@ -10,7 +10,6 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { connectPrometheus, prometheusMiddleware } = require('./monitoring/prometheus');
-const serviceFactory = require('./utils/serviceFactory');
 const services = require('./services');
 
 // Routes
@@ -34,19 +33,6 @@ if (process.env.NODE_ENV !== 'development') {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Check if we're using mock services
-const { useMockServices } = services.serviceFactory;
-const isMockMode = useMockServices();
-
-if (isMockMode) {
-  logger.warn('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  logger.warn('!!                MOCK MODE ACTIVE                  !!');
-  logger.warn('!! Application is running with mock service         !!');
-  logger.warn('!! implementations. Data will not persist beyond    !!');
-  logger.warn('!! server restart. This mode is for development.    !!');
-  logger.warn('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-}
-
 // Connect to database 
 testConnection();
 
@@ -54,20 +40,12 @@ testConnection();
 try {
   // Initialize storage service
   const storageService = services.storage();
-  storageService.init();
-  try {
-    storageService.testConnection();
-  } catch (error) {
-    logger.warn(`Storage service connection test error: ${error.message}`);
-  }
   
   // Initialize AI service
   const aiService = services.ai();
-  aiService.init();
   
   // Initialize queue service
   const queueService = services.queue();
-  queueService.init();
   
   // Initialize resume customization worker
   require('./workers/resumeWorker');

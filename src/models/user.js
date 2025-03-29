@@ -1,15 +1,9 @@
 const { DataTypes } = require('sequelize');
 const bcrypt = require('bcrypt');
 const { sequelize } = require('../config/database');
-const crypto = require('crypto');
 
-// Import mock User model for development without database
-const getMockUserModel = () => {
-  return require('../../__mocks__/models/User');
-};
-
-// Use real Sequelize model if available, otherwise use mock
-const User = sequelize ? sequelize.define('User', {
+// Define the User model using Sequelize
+const User = sequelize && sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -62,9 +56,8 @@ const User = sequelize ? sequelize.define('User', {
       }
     }
   }
-}) : getMockUserModel();
+});
 
-// Add methods only if sequelize exists
 if (sequelize) {
   // Instance method to check password
   User.prototype.isPasswordValid = async function(password) {

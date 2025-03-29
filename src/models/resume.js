@@ -1,15 +1,9 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 const User = require('./user');
-const crypto = require('crypto');
 
-// Import mock Resume model for development without database
-const getMockResumeModel = () => {
-  return require('../../__mocks__/models/Resume');
-};
-
-// Use real Sequelize model if available, otherwise use mock
-const Resume = sequelize ? sequelize.define('Resume', {
+// Define the Resume model using Sequelize
+const Resume = sequelize && sequelize.define('Resume', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -88,9 +82,8 @@ const Resume = sequelize ? sequelize.define('Resume', {
   }
 }, {
   timestamps: true
-}) : getMockResumeModel();
+});
 
-// Add methods and relationships only if sequelize exists
 if (sequelize) {
   // Establish relationship with User
   Resume.belongsTo(User, { foreignKey: 'userId', as: 'user' });
