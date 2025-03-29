@@ -3,7 +3,7 @@
  */
 
 const ResumeService = require('../../../src/services/resumeService.js.new');
-const path = require('path');
+// path is not used in this file
 
 // Mock dependencies
 const mockResumeRepository = {
