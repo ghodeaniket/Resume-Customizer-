@@ -27,18 +27,14 @@ const validateRequest = (req, res, next) => {
  * Validate customization request
  */
 const validateCustomizeRequest = [
-  // Either upload a file or use an existing resumeId
+  // Require a file upload
   body()
     .custom((value, { req }) => {
-      if (!req.file && !req.body.resumeId) {
-        throw new Error('Either upload a file or provide an existing resumeId');
+      if (!req.file) {
+        throw new Error('Resume file upload is required');
       }
       return true;
     }),
-  
-  body('resumeId')
-    .optional()
-    .isUUID().withMessage('Resume ID must be a valid UUID'),
   
   body('jobDescription')
     .exists().withMessage('Job description is required')

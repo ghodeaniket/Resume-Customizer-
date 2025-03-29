@@ -45,16 +45,13 @@ router.use(authMiddleware.protect);
  *           schema:
  *             type: object
  *             required:
+ *               - file
  *               - jobDescription
  *             properties:
  *               file:
  *                 type: string
  *                 format: binary
  *                 description: Resume file (PDF, DOC, DOCX)
- *               resumeId:
- *                 type: string
- *                 format: uuid
- *                 description: ID of an existing resume (use instead of file upload)
  *               jobDescription:
  *                 type: string
  *                 description: Job description text
