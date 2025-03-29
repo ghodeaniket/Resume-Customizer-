@@ -35,7 +35,8 @@ function getService(serviceName) {
     // Try to load the appropriate implementation
     if (isMockMode) {
       logger.info(`Initializing MOCK service: ${serviceName}`);
-      serviceModule = require(`./mocks/${serviceName}Service`);
+      // Load from the __mocks__ directory instead of src/services/mocks
+      serviceModule = require(`../../__mocks__/services/${serviceName}`);
       // Add visual identifier for mock services
       serviceModule.isMockService = true;
     } else {
@@ -64,7 +65,7 @@ function getService(serviceName) {
     if (process.env.NODE_ENV === 'development' && process.env.FALLBACK_TO_MOCK === 'true') {
       logger.warn(`Falling back to mock implementation for ${serviceName} (FALLBACK_TO_MOCK=true)`);
       try {
-        serviceModule = require(`./mocks/${serviceName}Service`);
+        serviceModule = require(`../../__mocks__/services/${serviceName}`);
         if (typeof serviceModule.init === 'function') {
           serviceModule.init();
         }
