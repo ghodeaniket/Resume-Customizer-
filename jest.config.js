@@ -5,6 +5,9 @@ module.exports = {
   // The test environment that will be used for testing
   testEnvironment: 'node',
   
+  // Setup file to run before tests
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  
   // The directory where Jest should output its coverage files
   coverageDirectory: 'coverage',
   

@@ -1,13 +1,13 @@
 /**
- * Mock Queue Service
- * Provides in-memory job queue for development
+ * Mock Queue Service for Testing
+ * Provides in-memory job queue for testing
  */
 
-const logger = require('../../utils/logger');
+const logger = require('../../../src/utils/logger');
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
 
-// Private in-memory job storage (module-scoped, not global)
+// Private in-memory job storage
 let jobs = new Map();
 let processors = new Map();
 const eventEmitter = new EventEmitter();
@@ -20,20 +20,7 @@ function init() {
   jobs = new Map();
   processors = new Map();
   
-  logger.info('Mock Queue Service initialized');
-  
-  // Add a warning banner to logs
-  const warning = [
-    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-    '!!                   MOCK MODE ACTIVE                      !!',
-    '!!                                                         !!',
-    '!! Queue Service is using IN-MEMORY MOCK IMPLEMENTATION    !!',
-    '!! Jobs will be processed in the same process and will be  !!',
-    '!! lost on server restart. This mode is for development.   !!',
-    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-  ];
-  
-  warning.forEach(line => logger.warn(line));
+  logger.info('Test Mock Queue Service initialized');
 }
 
 /**
@@ -61,11 +48,11 @@ async function addJob(jobType, data, options = {}) {
   
   // Store job
   jobs.set(jobId, job);
-  logger.info(`[MOCK] Added job ${jobId} of type ${jobType} to queue`);
   
-  // Schedule job processing with a small random delay
-  const delay = 100 + Math.random() * 500;
-  setTimeout(() => processJob(jobId), delay);
+  // Process job immediately for tests (without delay)
+  if (processors.has(jobType)) {
+    processJob(jobId);
+  }
   
   // Return mock job
   return {
@@ -81,7 +68,6 @@ async function addJob(jobType, data, options = {}) {
 async function processJob(jobId) {
   const job = jobs.get(jobId);
   if (!job) {
-    logger.warn(`[MOCK] Job ${jobId} not found`);
     return;
   }
   
@@ -94,7 +80,6 @@ async function processJob(jobId) {
   // Get processor for job type
   const processor = processors.get(job.type);
   if (!processor) {
-    logger.warn(`[MOCK] No processor found for job type ${job.type}`);
     job.status = 'failed';
     job.error = 'No processor registered for this job type';
     job.updatedAt = new Date();
@@ -106,8 +91,6 @@ async function processJob(jobId) {
   }
   
   try {
-    logger.info(`[MOCK] Processing job ${jobId} of type ${job.type} (attempt ${job.attempts}/${job.maxAttempts})`);
-    
     // Execute processor
     const result = await processor(job);
     
@@ -118,26 +101,18 @@ async function processJob(jobId) {
     job.updatedAt = new Date();
     jobs.set(jobId, job);
     
-    logger.info(`[MOCK] Job ${jobId} completed successfully`);
-    
     // Emit event
     eventEmitter.emit('completed', job, result);
   } catch (error) {
-    logger.error(`[MOCK] Job ${jobId} failed with error: ${error.message}`);
-    
     // Update job status
     job.error = error.message;
     job.updatedAt = new Date();
     
     if (job.attempts < job.maxAttempts) {
-      // Retry job after delay
+      // Retry job immediately for tests
       job.status = 'waiting';
       jobs.set(jobId, job);
-      
-      // Schedule retry with exponential backoff
-      const delay = Math.pow(2, job.attempts) * 1000;
-      logger.info(`[MOCK] Retrying job ${jobId} in ${delay}ms`);
-      setTimeout(() => processJob(jobId), delay);
+      processJob(jobId);
     } else {
       // Max attempts reached, mark as failed
       job.status = 'failed';
@@ -156,12 +131,10 @@ async function processJob(jobId) {
  */
 function registerProcessor(jobType, processor) {
   processors.set(jobType, processor);
-  logger.info(`[MOCK] Registered processor for job type: ${jobType}`);
   
-  // Check for existing jobs of this type
+  // Process any waiting jobs of this type
   for (const [jobId, job] of jobs.entries()) {
     if (job.type === jobType && job.status === 'waiting') {
-      logger.info(`[MOCK] Found waiting job ${jobId} of type ${jobType}, scheduling processing`);
       processJob(jobId);
     }
   }
@@ -179,9 +152,6 @@ async function getJob(jobId) {
   
   return {
     ...job,
-    // Add Bull-like methods
-    moveToCompleted: async () => {},
-    moveToFailed: async () => {},
     remove: async () => {
       jobs.delete(jobId);
       return true;
@@ -190,39 +160,9 @@ async function getJob(jobId) {
 }
 
 /**
- * Listen for queue events (similar to Bull's event system)
- * @param {string} event - Event name 
- * @param {Function} callback - Event handler
- */
-function on(event, callback) {
-  eventEmitter.on(event, callback);
-}
-
-/**
- * Get statistics about mock queue
- */
-function getStats() {
-  const stats = {
-    total: jobs.size,
-    waiting: 0,
-    processing: 0,
-    completed: 0,
-    failed: 0
-  };
-  
-  for (const job of jobs.values()) {
-    stats[job.status] = (stats[job.status] || 0) + 1;
-  }
-  
-  return stats;
-}
-
-/**
  * Clean up resources when service is destroyed
  */
 function destroy() {
-  const stats = getStats();
-  logger.info(`Mock Queue Service destroyed. Cleared ${stats.total} jobs`);
   jobs.clear();
   processors.clear();
   eventEmitter.removeAllListeners();
@@ -233,7 +173,6 @@ module.exports = {
   addJob,
   registerProcessor,
   getJob,
-  on,
-  getStats,
+  on: (event, callback) => eventEmitter.on(event, callback),
   destroy
 };

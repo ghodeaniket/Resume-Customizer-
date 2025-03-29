@@ -1,49 +1,45 @@
 /**
- * Mock AI Service
- * Provides a mock implementation of the AI customization service
+ * Mock N8N API Server
+ * 
+ * This server simulates the N8N webhook endpoint for development.
+ * It responds to resume customization requests with a template-based response.
  */
 
-const logger = require('../../utils/logger');
+const express = require('express');
+const cors = require('cors');
 
-/**
- * Initialize the service
- */
-function init() {
-  logger.info('Mock AI Service initialized');
-  
-  // Add a warning banner to logs
-  const warning = [
-    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-    '!!                   MOCK MODE ACTIVE                      !!',
-    '!!                                                         !!',
-    '!! AI Service is using MOCK IMPLEMENTATION                 !!',
-    '!! All customizations are simulated and use predefined     !!',
-    '!! templates. This mode is for development only.           !!',
-    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-  ];
-  
-  warning.forEach(line => logger.warn(line));
-}
+const app = express();
+const PORT = process.env.PORT || 5678;
 
-/**
- * Customize a resume based on job description
- * @param {Object} data - Data for customization
- * @param {string} data.resumeContent - Content of the resume
- * @param {string} data.jobDescription - Job description
- * @param {string} data.jobTitle - Job title (optional)
- * @param {string} data.companyName - Company name (optional)
- */
-async function customizeResume(data) {
-  const { resumeContent, jobDescription, jobTitle, companyName } = data;
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+// Mock webhook endpoint
+app.post('/webhook/customize-resume-ai', (req, res) => {
+  const { resumeContent, jobDescription, jobTitle, companyName } = req.body;
   
   // Validate required fields
   if (!resumeContent || !jobDescription) {
-    throw new Error('Resume content and job description are required');
+    return res.status(400).json({
+      error: 'Resume content and job description are required'
+    });
   }
   
-  logger.info('[MOCK] Processing resume customization request');
+  // Log request
+  console.log(`[${new Date().toISOString()}] Customization request received:`);
+  console.log(`  Job Title: ${jobTitle || 'Not specified'}`);
+  console.log(`  Company: ${companyName || 'Not specified'}`);
+  console.log(`  Resume Length: ${resumeContent.length} chars`);
+  console.log(`  Job Description Length: ${jobDescription.length} chars`);
   
-  // Extract some keywords from job description to make template slightly responsive
+  // Extract some keywords from job description for simple customization
   const keywordExtractor = (text, keywords) => {
     return keywords.filter(keyword => 
       text.toLowerCase().includes(keyword.toLowerCase())
@@ -61,10 +57,6 @@ async function customizeResume(data) {
     ['Frontend', 'Backend', 'Full Stack', 'DevOps', 'Data Science', 'Manager', 
     'Lead', 'Senior', 'Junior', 'Architect', 'Designer']
   );
-  
-  // Simulate processing delay (1-3 seconds)
-  const delay = 1000 + Math.random() * 2000;
-  await new Promise(resolve => setTimeout(resolve, delay));
   
   // Create a customized resume based on the job description and extracted keywords
   const customizedResume = `# Customized Resume for ${jobTitle || 'Software Engineer'} at ${companyName || 'Tech Company'}
@@ -108,26 +100,21 @@ Dedicated ${roleKeywords.join(' ')} developer with extensive experience in devel
 - Methodologies: Agile, Scrum, Test-Driven Development
 - Soft Skills: Communication, Team Leadership, Problem-Solving
 
-*This resume has been customized based on the job description provided (MOCK VERSION).*
+*This resume has been customized based on the job description provided.*
 `;
   
-  logger.info('[MOCK] Resume customization complete');
+  console.log(`[${new Date().toISOString()}] Returning customized resume (${customizedResume.length} chars)`);
   
-  return {
-    resume: customizedResume
-  };
-}
+  // Simulate processing delay (1-3 seconds)
+  setTimeout(() => {
+    res.status(200).json({
+      resume: customizedResume
+    });
+  }, 1000 + Math.random() * 2000);
+});
 
-/**
- * Clean up resources when service is destroyed
- */
-function destroy() {
-  logger.info('Mock AI Service destroyed');
-  // No specific cleanup needed
-}
-
-module.exports = {
-  init,
-  customizeResume,
-  destroy
-};
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Mock N8N API server running at http://localhost:${PORT}`);
+  console.log(`Webhook endpoint: http://localhost:${PORT}/webhook/customize-resume-ai`);
+});

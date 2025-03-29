@@ -14,11 +14,23 @@ let s3;
  */
 function init() {
   // Configure AWS SDK
-  AWS.config.update({
+  const awsConfig = {
     accessKeyId: aws.accessKeyId,
     secretAccessKey: aws.secretAccessKey,
     region: aws.region
-  });
+  };
+  
+  // Check for Docker environment with MinIO
+  if (process.env.AWS_ENDPOINT || process.env.AWS_FORCE_PATH_STYLE === 'true') {
+    // Configure for MinIO
+    awsConfig.endpoint = process.env.AWS_ENDPOINT;
+    awsConfig.s3ForcePathStyle = true;
+    awsConfig.signatureVersion = 'v4';
+    
+    logger.info(`Using MinIO endpoint: ${process.env.AWS_ENDPOINT}`);
+  }
+  
+  AWS.config.update(awsConfig);
 
   // Create S3 service object
   s3 = new AWS.S3();
