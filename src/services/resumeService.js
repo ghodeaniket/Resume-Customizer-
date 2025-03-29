@@ -359,6 +359,59 @@ exports.getResumePublicLink = async (resumeId, userId) => {
 };
 
 /**
+ * Customize an existing resume with a new job description
+ */
+exports.customizeExistingResume = async (resumeId, userId, customizationData) => {
+  try {
+    const { jobDescription, jobTitle, companyName } = customizationData;
+    
+    // Find resume
+    const resume = await Resume.findOne({
+      where: { id: resumeId, userId }
+    });
+    
+    if (!resume) {
+      const error = new Error('Resume not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    
+    // Update resume with new customization data
+    resume.jobDescription = jobDescription;
+    if (jobTitle) resume.jobTitle = jobTitle;
+    if (companyName) resume.companyName = companyName;
+    resume.customizationStatus = 'pending';
+    resume.customizationError = null;
+    resume.customizationCompletedAt = null;
+    resume.lastModified = new Date();
+    
+    await resume.save();
+    
+    // Import worker module and add job to queue
+    const { queueResumeCustomization } = require('../workers/resumeWorker');
+    const jobId = await queueResumeCustomization(resume.id);
+    
+    logger.info(`Existing resume ${resume.id} added to customization queue with job ID ${jobId}`);
+    
+    return {
+      id: resume.id,
+      name: resume.name,
+      customizationStatus: resume.customizationStatus,
+      jobId
+    };
+  } catch (error) {
+    logger.error(`Customize existing resume service error: ${error.message}`);
+    
+    // Add status code if not present
+    if (!error.statusCode) {
+      error.statusCode = 500;
+    }
+    
+    throw error;
+  }
+};
+
+/**
  * Upload and customize resume in one step
  */
 exports.uploadAndCustomize = async (data) => {

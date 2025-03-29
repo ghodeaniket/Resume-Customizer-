@@ -309,25 +309,46 @@ exports.getPublicLink = async (req, res, next) => {
  */
 exports.uploadAndCustomize = async (req, res, next) => {
   try {
-    // Validation is now handled by the middleware
+    // Validation is handled by the middleware
     const userId = req.user.id;
-    const file = req.file;
     const { 
       jobDescription, 
       jobTitle, 
       companyName,
-      name // Optional custom name
+      name, // Optional custom name
+      resumeId // Optional existing resume ID
     } = req.body;
-
-    // Process upload and start customization
-    const result = await resumeService.uploadAndCustomize({
-      userId,
-      name: name || file.originalname,
-      file,
-      jobDescription,
-      jobTitle,
-      companyName
-    });
+    
+    let result;
+    
+    // Case 1: Using an existing resume
+    if (resumeId) {
+      logger.info(`Customizing existing resume ${resumeId} with new job description`);
+      result = await resumeService.customizeExistingResume(resumeId, userId, {
+        jobDescription,
+        jobTitle,
+        companyName
+      });
+    } 
+    // Case 2: Uploading a new resume
+    else if (req.file) {
+      logger.info('Uploading and customizing new resume');
+      const file = req.file;
+      result = await resumeService.uploadAndCustomize({
+        userId,
+        name: name || file.originalname,
+        file,
+        jobDescription,
+        jobTitle,
+        companyName
+      });
+    } 
+    // This shouldn't happen due to validation, but just in case
+    else {
+      const error = new Error('Either an existing resume ID or a file upload is required');
+      error.statusCode = 400;
+      throw error;
+    }
 
     return res.status(202).json({
       status: 'success',
@@ -336,7 +357,7 @@ exports.uploadAndCustomize = async (req, res, next) => {
         resumeId: result.id,
         status: result.customizationStatus,
         jobId: result.jobId,
-        estimatedTimeSeconds: 60 // More realistic estimate
+        estimatedTimeSeconds: 60 // Realistic estimate
       }
     });
   } catch (error) {
