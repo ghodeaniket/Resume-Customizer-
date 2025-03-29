@@ -1,0 +1,17 @@
+# Dependency directories
+node_modules/
+coverage/
+
+# Build output
+dist/
+build/
+
+# Logs
+logs/
+
+# Configuration files
+.github/
+.vscode/
+
+# Generated files
+package-lock.json
