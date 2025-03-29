@@ -1,0 +1,65 @@
+name: Resume Customizer CD
+
+on:
+  # Trigger the workflow on manual dispatch (button in GitHub UI)
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Install deployment tools
+      run: npm install -g pm2
+    
+    # Example - SSH deploy (would need to set up secrets)
+    - name: Deploy via SSH
+      if: ${{ github.event.inputs.environment == 'staging' }}
+      run: |
+        echo "Deploying to ${{ github.event.inputs.environment }} server..."
+        echo "This is a placeholder. Real deployment would use secrets for SSH."
+        # mkdir -p ~/.ssh
+        # echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        # chmod 600 ~/.ssh/id_rsa
+        # ssh -o StrictHostKeyChecking=no user@${{ secrets.SSH_HOST }} "cd /path/to/app && git pull && npm ci && pm2 restart app"
+    
+    # Example - AWS Elastic Beanstalk deployment
+    - name: Deploy to AWS
+      if: ${{ github.event.inputs.environment == 'production' }}
+      run: |
+        echo "Deploying to AWS ${{ github.event.inputs.environment }}..."
+        echo "This is a placeholder. Real deployment would use AWS CLI or EB CLI."
+        # aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        # aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        # aws configure set region ${{ secrets.AWS_REGION }}
+        # zip -r deploy.zip . -x "node_modules/*" ".git/*"
+        # aws s3 cp deploy.zip s3://${{ secrets.EB_BUCKET }}/${{ github.sha }}.zip
+        # aws elasticbeanstalk create-application-version --application-name resume-customizer --version-label ${{ github.sha }} --source-bundle S3Bucket=${{ secrets.EB_BUCKET }},S3Key=${{ github.sha }}.zip
+        # aws elasticbeanstalk update-environment --environment-name resume-customizer-${{ github.event.inputs.environment }} --version-label ${{ github.sha }}
+    
+    - name: Send deployment notification
+      run: |
+        echo "Deployment to ${{ github.event.inputs.environment }} completed!"
+        # You could add Slack/Email notifications here

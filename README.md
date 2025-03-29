@@ -1,5 +1,8 @@
 # Resume Customizer Backend
 
+[![CI Status](https://github.com/ghodeaniket/Resume-Customizer-/actions/workflows/ci.yml/badge.svg)](https://github.com/ghodeaniket/Resume-Customizer-/actions/workflows/ci.yml)
+[![CD Status](https://github.com/ghodeaniket/Resume-Customizer-/actions/workflows/cd.yml/badge.svg)](https://github.com/ghodeaniket/Resume-Customizer-/actions/workflows/cd.yml)
+
 This is the backend API for the Resume Customizer application, which helps users customize their resumes for specific job applications using AI and automation.
 
 ## Features
@@ -32,18 +35,21 @@ The application is fully dockerized for consistent development and production en
 ### Development Environment
 
 ```bash
-# Start development environment
-./docker-compose.sh -e dev -a up
+# Start the development environment with all services (PostgreSQL, Redis, MinIO, Mock N8N)
+npm run dev:docker
 
-# Start in detached mode
-./docker-compose.sh -e dev -a up -d
+# Or start just the Docker services
+npm run docker:up
 
-# View logs
-./docker-compose.sh -e dev -a logs
+# Start in detached mode and manually start the server
+npm run docker:up
+npm run dev
 
 # Stop environment
-./docker-compose.sh -e dev -a down
+npm run docker:down
 ```
+
+For detailed development setup instructions, see [DEV_SETUP.md](DEV_SETUP.md).
 
 ### Production Environment
 
@@ -150,11 +156,29 @@ npm run db:seed
 
 ## Testing
 
-The project includes unit and integration tests. Run them with:
+The project includes unit and integration tests with proper mocks for all external services. Run them with:
 
-```
+```bash
+# Run all tests
 npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run integration tests only
+npm run test:integration
+
+# Run end-to-end tests
+npm run test:e2e
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run tests in CI mode
+npm run test:ci
 ```
+
+All tests use mock implementations of external services (storage, queue, AI) to ensure they can run without dependencies and provide consistent results. The mock implementations are in the `tests/mocks/services` directory.
 
 For manual API testing, we provide a Postman collection in the `postman` directory:
 - `Resume-Customizer-API.postman_collection.json`
