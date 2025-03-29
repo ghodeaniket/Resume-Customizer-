@@ -8,11 +8,12 @@ services:
     container_name: resume-customizer-backend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3004:3000"
     environment:
       - NODE_ENV=development
       - PORT=3000
       - DATABASE_URL=postgres://username:password@postgres:5432/database
+      # Note: when connecting from outside Docker, use localhost:5433
       - JWT_SECRET=jwt_development_secret
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -23,7 +24,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
-      - PUBLIC_URL=http://localhost:3000
+      - PUBLIC_URL=http://localhost:3004
       - CUSTOMIZATION_TIMEOUT_MS=120000
       - CUSTOMIZATION_MAX_RETRIES=3
       - LOG_LEVEL=debug
@@ -54,7 +55,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - resume-customizer-network
     healthcheck:
@@ -99,7 +100,7 @@ services:
     container_name: resume-customizer-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis-data:/data
     networks:

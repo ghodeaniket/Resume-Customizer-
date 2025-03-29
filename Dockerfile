@@ -24,8 +24,12 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 FROM base AS dependencies
 # Copy package.json and package-lock.json
 COPY package*.json ./
+# Add build dependencies
+RUN apk add --no-cache --virtual .build-deps make gcc g++ python3 py3-pip
 # Install all dependencies (including dev)
 RUN npm ci
+# Remove build dependencies
+RUN apk del .build-deps
 # Copy project files
 COPY . .
 
