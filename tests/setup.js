@@ -86,6 +86,41 @@ jest.mock('puppeteer', () => ({
   })
 }));
 
+// Mock pdf-parse
+jest.mock('pdf-parse', () => {
+  return jest.fn().mockImplementation(() => {
+    return Promise.resolve({
+      text: 'MOCK PDF CONTENT\n\nThis is mock content for testing.',
+      numpages: 1,
+      info: {},
+      metadata: null
+    });
+  });
+});
+
+// Mock convertPdfToMarkdown
+jest.mock('../src/utils/convertPdfToMarkdown', () => {
+  return jest.fn().mockImplementation(() => {
+    return Promise.resolve(`# Mock Resume
+
+This is a mocked resume content for testing.
+
+## EXPERIENCE
+
+### Software Engineer | ABC Company
+
+- Developed features for enterprise applications
+- Collaborated with cross-functional teams
+
+## EDUCATION
+
+### University of Testing
+
+Bachelor of Science in Computer Science
+`);
+  });
+});
+
 // Mock the sequelize instance
 jest.mock('../src/config/database', () => {
   const mockSequelize = {
