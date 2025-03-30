@@ -20,6 +20,60 @@ process.env.CUSTOMIZATION_MAX_RETRIES = '1';
 process.env.DATABASE_URL = 'sqlite::memory:';
 process.env.MOCK_SERVICES = 'true';
 
+// Create mock job
+const mockJob = {
+  id: 'mock-job-id',
+  data: {},
+  opts: {},
+  progress: jest.fn(),
+  log: jest.fn(),
+  moveToCompleted: jest.fn(),
+  moveToFailed: jest.fn()
+};
+
+// Create mock Queue
+class MockQueue {
+  constructor() {
+    this.handlers = {};
+    this.processors = {};
+  }
+
+  on(event, handler) {
+    this.handlers[event] = handler;
+    return this;
+  }
+
+  process(jobType, handler) {
+    this.processors[jobType] = handler;
+    return this;
+  }
+
+  add(jobType, data, options = {}) {
+    return Promise.resolve({
+      id: 'mock-job-id',
+      data,
+      opts: options
+    });
+  }
+
+  getJob(jobId) {
+    return Promise.resolve(mockJob);
+  }
+
+  clean() {
+    return Promise.resolve(true);
+  }
+
+  close() {
+    return Promise.resolve(true);
+  }
+}
+
+// Mock Bull queue
+jest.mock('bull', () => {
+  return jest.fn().mockImplementation(() => new MockQueue());
+});
+
 // Mock puppeteer
 jest.mock('puppeteer', () => ({
   launch: jest.fn().mockResolvedValue({
@@ -80,6 +134,50 @@ jest.mock('../src/models/resume', () => {
     update: jest.fn(),
     destroy: jest.fn()
   };
+});
+
+// Make sure services are properly mocked
+jest.mock('../src/services/implementations/queueService', () => {
+  return {
+    init: jest.fn(),
+    addJob: jest.fn().mockResolvedValue({ id: 'mock-job-id' }),
+    registerProcessor: jest.fn(),
+    getJob: jest.fn().mockResolvedValue(mockJob),
+    destroy: jest.fn().mockResolvedValue()
+  };
+});
+
+// Mock the resumeWorker
+jest.mock('../src/workers/resumeWorker', () => {
+  return {
+    queueResumeCustomization: jest.fn().mockResolvedValue('mock-job-id')
+  };
+});
+
+// Mock Redis connection
+jest.mock('redis', () => {
+  const mockRedisClient = {
+    connect: jest.fn().mockResolvedValue(),
+    disconnect: jest.fn().mockResolvedValue(),
+    on: jest.fn(),
+    quit: jest.fn().mockResolvedValue()
+  };
+  
+  return {
+    createClient: jest.fn().mockReturnValue(mockRedisClient)
+  };
+});
+
+// Prevent jest from hanging due to open handles
+afterAll(async () => {
+  // Clean up any open handles
+  const Bull = require('bull');
+  jest.clearAllMocks();
+
+  // Force exit after all tests complete
+  setTimeout(() => {
+    process.exit(0);
+  }, 500);
 });
 
 // Setup global error handlers

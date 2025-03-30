@@ -21,7 +21,7 @@ describe('Auth API Endpoints', () => {
     await User.destroy({ where: {}, force: true });
   });
 
-  describe('POST /api/auth/register', () => {
+  describe('POST /api/v1/auth/register', () => {
     it('should register a new user', async () => {
       const userData = {
         firstName: 'Test',
@@ -31,7 +31,7 @@ describe('Auth API Endpoints', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send(userData)
         .expect(201);
 
@@ -59,7 +59,7 @@ describe('Auth API Endpoints', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send(userData)
         .expect(400);
 
@@ -76,7 +76,7 @@ describe('Auth API Endpoints', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send(userData)
         .expect(400);
 
@@ -84,7 +84,7 @@ describe('Auth API Endpoints', () => {
     });
   });
 
-  describe('POST /api/auth/login', () => {
+  describe('POST /api/v1/auth/login', () => {
     it('should login a user with valid credentials', async () => {
       // Create a user first
       await User.create({
@@ -100,7 +100,7 @@ describe('Auth API Endpoints', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send(loginData)
         .expect(200);
 
@@ -125,7 +125,7 @@ describe('Auth API Endpoints', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send(loginData)
         .expect(401);
 
@@ -133,7 +133,7 @@ describe('Auth API Endpoints', () => {
     });
   });
 
-  describe('GET /api/auth/me', () => {
+  describe('GET /api/v1/auth/me', () => {
     it('should return current user if authenticated', async () => {
       // Create a user first
       const user = await User.create({
@@ -145,7 +145,7 @@ describe('Auth API Endpoints', () => {
 
       // Login to get token
       const loginResponse = await request(app)
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({
           email: 'current@example.com',
           password: 'password123'
@@ -154,7 +154,7 @@ describe('Auth API Endpoints', () => {
       const token = loginResponse.body.data.token;
 
       const response = await request(app)
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -165,7 +165,7 @@ describe('Auth API Endpoints', () => {
 
     it('should return 401 if not authenticated', async () => {
       const response = await request(app)
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .expect(401);
 
       expect(response.body.status).toBe('fail');

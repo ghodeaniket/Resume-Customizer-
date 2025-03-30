@@ -1,127 +1,60 @@
 /**
- * Mock Queue Service for Testing
- * Provides in-memory job queue for testing
+ * Mock Queue Service for testing
  */
 
 const logger = require('../../../src/utils/logger');
-const crypto = require('crypto');
-const { EventEmitter } = require('events');
 
-// Private in-memory job storage
-let jobs = new Map();
-let processors = new Map();
-const eventEmitter = new EventEmitter();
+// Mock job
+const createMockJob = (id, data) => ({
+  id,
+  data,
+  progress: jest.fn(),
+  moveToCompleted: jest.fn(),
+  moveToFailed: jest.fn(),
+  remove: jest.fn()
+});
+
+// In-memory queue for testing
+const jobsQueue = new Map();
+let processors = {};
+let jobIdCounter = 1;
 
 /**
- * Initialize the service
+ * Initialize the mock service
  */
 function init() {
-  // Clear existing jobs and processors on initialization
-  jobs = new Map();
-  processors = new Map();
-  
   logger.info('Test Mock Queue Service initialized');
 }
 
 /**
  * Add a job to the mock queue
- * @param {string} jobType - Type of job
+ * @param {string} jobType - Type of job 
  * @param {Object} data - Job data
  * @param {Object} options - Job options
  */
 async function addJob(jobType, data, options = {}) {
-  // Generate a unique job ID
-  const jobId = crypto.randomUUID();
+  const jobId = `mock-job-${jobIdCounter++}`;
+  const job = createMockJob(jobId, data);
   
-  // Create job
-  const job = {
-    id: jobId,
+  jobsQueue.set(jobId, {
+    job,
     type: jobType,
-    data,
-    options,
-    status: 'waiting',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    attempts: 0,
-    maxAttempts: options.attempts || 3
-  };
+    options
+  });
   
-  // Store job
-  jobs.set(jobId, job);
+  logger.info(`[MOCK] Added job ${jobId} of type ${jobType} to queue`);
   
-  // Process job immediately for tests (without delay)
-  if (processors.has(jobType)) {
-    processJob(jobId);
-  }
-  
-  // Return mock job
-  return {
-    id: jobId,
-    ...job
-  };
-}
-
-/**
- * Process a job
- * @param {string} jobId - ID of the job to process
- */
-async function processJob(jobId) {
-  const job = jobs.get(jobId);
-  if (!job) {
-    return;
-  }
-  
-  // Update job status
-  job.status = 'processing';
-  job.attempts += 1;
-  job.updatedAt = new Date();
-  jobs.set(jobId, job);
-  
-  // Get processor for job type
-  const processor = processors.get(job.type);
-  if (!processor) {
-    job.status = 'failed';
-    job.error = 'No processor registered for this job type';
-    job.updatedAt = new Date();
-    jobs.set(jobId, job);
-    
-    // Emit event
-    eventEmitter.emit('failed', job, new Error(job.error));
-    return;
-  }
-  
-  try {
-    // Execute processor
-    const result = await processor(job);
-    
-    // Update job status
-    job.status = 'completed';
-    job.result = result;
-    job.completedAt = new Date();
-    job.updatedAt = new Date();
-    jobs.set(jobId, job);
-    
-    // Emit event
-    eventEmitter.emit('completed', job, result);
-  } catch (error) {
-    // Update job status
-    job.error = error.message;
-    job.updatedAt = new Date();
-    
-    if (job.attempts < job.maxAttempts) {
-      // Retry job immediately for tests
-      job.status = 'waiting';
-      jobs.set(jobId, job);
-      processJob(jobId);
-    } else {
-      // Max attempts reached, mark as failed
-      job.status = 'failed';
-      jobs.set(jobId, job);
-      
-      // Emit event
-      eventEmitter.emit('failed', job, error);
+  // Process job immediately in test environment
+  if (processors[jobType]) {
+    try {
+      const result = await processors[jobType](job);
+      logger.info(`[MOCK] Job ${jobId} completed with result: ${JSON.stringify(result)}`);
+    } catch (error) {
+      logger.error(`[MOCK] Job ${jobId} failed with error: ${error.message}`);
     }
   }
+  
+  return job;
 }
 
 /**
@@ -130,14 +63,8 @@ async function processJob(jobId) {
  * @param {Function} processor - Processing function
  */
 function registerProcessor(jobType, processor) {
-  processors.set(jobType, processor);
-  
-  // Process any waiting jobs of this type
-  for (const [jobId, job] of jobs.entries()) {
-    if (job.type === jobType && job.status === 'waiting') {
-      processJob(jobId);
-    }
-  }
+  processors[jobType] = processor;
+  logger.info(`[MOCK] Registered processor for job type: ${jobType}`);
 }
 
 /**
@@ -145,27 +72,17 @@ function registerProcessor(jobType, processor) {
  * @param {string} jobId - ID of the job
  */
 async function getJob(jobId) {
-  const job = jobs.get(jobId);
-  if (!job) {
-    return null;
-  }
-  
-  return {
-    ...job,
-    remove: async () => {
-      jobs.delete(jobId);
-      return true;
-    }
-  };
+  const entry = jobsQueue.get(jobId);
+  return entry ? entry.job : null;
 }
 
 /**
  * Clean up resources when service is destroyed
  */
-function destroy() {
-  jobs.clear();
-  processors.clear();
-  eventEmitter.removeAllListeners();
+async function destroy() {
+  jobsQueue.clear();
+  processors = {};
+  logger.info('[MOCK] Queue Service destroyed');
 }
 
 module.exports = {
@@ -173,6 +90,5 @@ module.exports = {
   addJob,
   registerProcessor,
   getJob,
-  on: (event, callback) => eventEmitter.on(event, callback),
   destroy
 };
