@@ -2,7 +2,7 @@
  * Unit Tests for Resume Service
  */
 
-const ResumeService = require('../../../src/services/resumeService.js.new');
+const ResumeService = require('../../../src/services/resumeService.new.js');
 // path is not used in this file
 
 // Mock dependencies

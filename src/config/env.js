@@ -5,6 +5,14 @@ const logger = require('../utils/logger');
 // Load environment variables from .env file
 dotenv.config();
 
+// Create a conditional DATABASE_URL validation based on the environment
+const getDatabaseUrlSchema = () => {
+  if (process.env.NODE_ENV === 'test') {
+    return joi.string().default('sqlite::memory:');
+  }
+  return joi.string().required();
+};
+
 // Define validation schema
 const envSchema = joi.object({
   // Server
@@ -12,7 +20,7 @@ const envSchema = joi.object({
   PORT: joi.number().default(3000),
   
   // Database
-  DATABASE_URL: joi.string().required(),
+  DATABASE_URL: getDatabaseUrlSchema(),
   
   // JWT
   JWT_SECRET: joi.string().required(),
@@ -50,7 +58,11 @@ const { error, value: env } = envSchema.validate(process.env);
 
 if (error) {
   logger.error(`Environment variable validation error: ${error.message}`);
-  process.exit(1);
+  
+  // Don't exit if we're in test mode - test suites will handle this themselves
+  if (process.env.NODE_ENV !== 'test') {
+    process.exit(1);
+  }
 }
 
 module.exports = {
