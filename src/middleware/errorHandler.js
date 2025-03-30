@@ -1,85 +1,90 @@
+/**
+ * Global Error Handler Middleware
+ * 
+ * This middleware handles all errors throughout the application and
+ * provides a consistent error response format.
+ */
+
 const logger = require('../utils/logger');
+const { AppError, createAppError } = require('../utils/errors');
 
 /**
  * Global error handling middleware
  */
 const errorHandler = (err, req, res, next) => {
-  // Log the error with appropriate level based on status code
-  const logMethod = err.statusCode >= 500 ? 'error' : 'warn';
+  // Convert any regular errors to AppError for consistent handling
+  const error = err instanceof AppError ? err : createAppError(err);
   
-  logger[logMethod](`Error: ${err.message}`, {
-    statusCode: err.statusCode,
+  // Log the error with appropriate level based on status code
+  const logMethod = error.statusCode >= 500 ? 'error' : 'warn';
+  
+  logger[logMethod](`Error: ${error.message}`, {
+    statusCode: error.statusCode,
+    code: error.code,
     path: req.path,
     method: req.method,
-    errorName: err.name,
-    errorType: err.type,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    errorName: error.name,
+    isOperational: error.isOperational,
+    ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
   });
 
-  // Default error status and message
-  let statusCode = err.statusCode || 500;
-  let message = err.message || 'Something went wrong';
-  let errorType = err.name || err.type || 'Error';
-  let errorDetails = null;
-
-  // Handle specific error types
-  if (errorType === 'SequelizeValidationError') {
-    statusCode = 400;
-    message = err.errors.map(e => e.message).join(', ');
-    errorDetails = err.errors;
-  } else if (errorType === 'SequelizeUniqueConstraintError') {
-    statusCode = 400;
-    message = 'Duplicate field value entered';
-    errorDetails = err.errors;
-  } else if (errorType === 'SequelizeDatabaseError') {
-    statusCode = 500;
-    message = 'Database error';
-    errorDetails = process.env.NODE_ENV === 'development' ? err.parent : null;
-  } else if (errorType === 'SyntaxError' && (err.status === 400 || err.message.includes('JSON'))) {
-    statusCode = 400;
-    message = 'Invalid JSON';
-  } else if (errorType === 'JsonWebTokenError' || errorType === 'TokenExpiredError') {
-    statusCode = 401;
-    message = 'Invalid or expired token';
-  } else if (errorType === 'MulterError') {
-    statusCode = 400;
+  // Handle specific error types from external libraries
+  if (err.name === 'SequelizeValidationError') {
+    error.statusCode = 400;
+    error.code = 'VALIDATION_ERROR';
+    error.message = err.errors.map(e => e.message).join(', ');
+    error.errors = err.errors;
+  } else if (err.name === 'SequelizeUniqueConstraintError') {
+    error.statusCode = 400;
+    error.code = 'DUPLICATE_ERROR';
+    error.message = 'Duplicate field value entered';
+    error.errors = err.errors;
+  } else if (err.name === 'MulterError') {
+    error.statusCode = 400;
+    error.code = 'FILE_UPLOAD_ERROR';
+    
     if (err.code === 'LIMIT_FILE_SIZE') {
-      message = 'File too large';
-    } else {
-      message = `File upload error: ${err.message}`;
-    }
-  } else if (statusCode === 500 && process.env.NODE_ENV === 'production') {
-    // In production, don't expose detailed error messages for 500 errors
-    message = 'Internal server error';
-    errorDetails = null;
-  } else {
-    // Handle custom error details
-    if (err.originalError) {
-      errorDetails = {
-        type: err.originalError.name,
-        message: err.originalError.message,
-        ...(err.originalError.code && { code: err.originalError.code })
-      };
-    } else if (err.details) {
-      errorDetails = err.details;
+      error.message = 'File too large';
     }
   }
 
   // Prepare error response
   const errorResponse = {
-    status: statusCode >= 500 ? 'error' : 'fail',
-    message,
-    code: err.code || errorType,
-    ...(errorDetails && process.env.NODE_ENV === 'development' && { details: errorDetails }),
-    ...(err.resumeStatus && { data: {
+    status: error.statusCode >= 500 ? 'error' : 'fail',
+    message: error.message,
+    code: error.code,
+  };
+  
+  // Add details for non-production environments
+  if (process.env.NODE_ENV !== 'production') {
+    if (error.errors) {
+      errorResponse.errors = error.errors;
+    }
+    
+    if (error.stack) {
+      errorResponse.stack = error.stack;
+    }
+  }
+  
+  // Add specific data for certain error types
+  if (error.resource) {
+    errorResponse.resource = error.resource;
+  }
+  
+  if (error.operation) {
+    errorResponse.operation = error.operation;
+  }
+  
+  // Add resume status if available (for resume-specific errors)
+  if (err.resumeStatus) {
+    errorResponse.data = {
       status: err.resumeStatus,
       error: err.resumeError
-    }}),
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  };
+    };
+  }
 
   // Send error response
-  return res.status(statusCode).json(errorResponse);
+  return res.status(error.statusCode).json(errorResponse);
 };
 
 module.exports = errorHandler;

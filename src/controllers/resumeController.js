@@ -3,12 +3,19 @@
  * Handles HTTP requests related to resumes
  */
 
-const resumeService = require('../services/resumeService');
+const { ServiceType, getService } = require('../services/serviceRegistry');
 const { 
   withErrorHandling, 
   successResponse, 
   errorResponse 
 } = require('../utils/controllerUtils');
+const {
+  ValidationError,
+  NotFoundError
+} = require('../utils/errors');
+
+// Get resume service from registry
+const resumeService = getService(ServiceType.RESUME);
 
 /**
  * Get all resumes for the current user
@@ -33,7 +40,7 @@ exports.getResume = withErrorHandling(async (req, res) => {
   const resume = await resumeService.getResumeById(id, userId);
 
   if (!resume) {
-    return errorResponse(res, 404, 'Resume not found');
+    throw new NotFoundError('Resume not found', 'resume');
   }
 
   return successResponse(res, 200, 'Resume retrieved successfully', { resume });
@@ -45,7 +52,7 @@ exports.getResume = withErrorHandling(async (req, res) => {
 exports.uploadResume = withErrorHandling(async (req, res) => {
   // Multer middleware will attach file to req.file
   if (!req.file) {
-    return errorResponse(res, 400, 'Please upload a resume file');
+    throw new ValidationError('Please upload a resume file');
   }
 
   const { name, description } = req.body;
@@ -79,7 +86,7 @@ exports.updateResume = withErrorHandling(async (req, res) => {
   });
 
   if (!resume) {
-    return errorResponse(res, 404, 'Resume not found');
+    throw new NotFoundError('Resume not found', 'resume');
   }
 
   return successResponse(res, 200, 'Resume updated successfully', { resume });
@@ -96,7 +103,7 @@ exports.deleteResume = withErrorHandling(async (req, res) => {
   const success = await resumeService.deleteResume(id, userId);
 
   if (!success) {
-    return errorResponse(res, 404, 'Resume not found');
+    throw new NotFoundError('Resume not found', 'resume');
   }
 
   return res.status(204).send();
@@ -113,7 +120,7 @@ exports.convertToMarkdown = withErrorHandling(async (req, res) => {
   const { resume, markdown } = await resumeService.convertResumeToMarkdown(id, userId);
 
   if (!resume) {
-    return errorResponse(res, 404, 'Resume not found');
+    throw new NotFoundError('Resume not found', 'resume');
   }
 
   return successResponse(res, 200, 'Resume converted to markdown successfully', {
@@ -132,7 +139,7 @@ exports.customizeResume = withErrorHandling(async (req, res) => {
 
   // Validate input
   if (!jobDescription) {
-    return errorResponse(res, 400, 'Please provide job description');
+    throw new ValidationError('Please provide job description');
   }
 
   // Customize resume
@@ -141,10 +148,6 @@ exports.customizeResume = withErrorHandling(async (req, res) => {
     jobTitle,
     companyName
   });
-
-  if (!customizedResume) {
-    return errorResponse(res, 404, 'Resume not found');
-  }
 
   return successResponse(res, 200, 'Resume customization has been queued', {
     resume: customizedResume
@@ -161,14 +164,14 @@ exports.shareResume = withErrorHandling(async (req, res) => {
 
   // Validate input
   if (isPublic === undefined) {
-    return errorResponse(res, 400, 'Please specify isPublic value');
+    throw new ValidationError('Please specify isPublic value');
   }
 
   // Update resume sharing status
   const resume = await resumeService.updateResumeSharing(id, userId, isPublic);
 
   if (!resume) {
-    return errorResponse(res, 404, 'Resume not found');
+    throw new NotFoundError('Resume not found', 'resume');
   }
 
   return successResponse(
@@ -190,11 +193,11 @@ exports.getPublicLink = withErrorHandling(async (req, res) => {
   const { resume, publicLink } = await resumeService.getResumePublicLink(id, userId);
 
   if (!resume) {
-    return errorResponse(res, 404, 'Resume not found');
+    throw new NotFoundError('Resume not found', 'resume');
   }
 
   if (!resume.isPublic) {
-    return errorResponse(res, 400, 'Resume is not shared publicly');
+    throw new ValidationError('Resume is not shared publicly');
   }
 
   return successResponse(res, 200, 'Public link retrieved successfully', {
@@ -216,6 +219,14 @@ exports.uploadAndCustomize = withErrorHandling(async (req, res) => {
     companyName,
     name // Optional custom name
   } = req.body;
+
+  if (!file) {
+    throw new ValidationError('Please upload a resume file');
+  }
+
+  if (!jobDescription) {
+    throw new ValidationError('Please provide job description');
+  }
 
   // Process upload and start customization
   const result = await resumeService.uploadAndCustomize({

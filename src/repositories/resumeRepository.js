@@ -1,8 +1,9 @@
 /**
  * Resume Repository
  * 
- * This repository provides an abstraction layer over the Resume model,
- * handling all database interactions related to resumes.
+ * This repository handles data access operations for resumes.
+ * It abstracts database operations and provides a clean interface
+ * for the service layer.
  */
 
 const Resume = require('../models/resume');
@@ -10,71 +11,68 @@ const logger = require('../utils/logger');
 
 /**
  * Find all resumes for a specific user
- * @param {string} userId - The user ID
- * @returns {Promise<Array>} - Array of resume objects
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} Array of resume objects
  */
 async function findByUser(userId) {
   try {
-    const resumes = await Resume.findAll({
+    return await Resume.findAll({
       where: { userId },
       order: [['updatedAt', 'DESC']]
     });
-    return resumes;
   } catch (error) {
-    logger.error(`Error finding resumes for user ${userId}: ${error.message}`);
+    logger.error(`Repository error - findByUser: ${error.message}`, error);
     throw error;
   }
 }
 
 /**
  * Find a resume by ID and user ID
- * @param {string} id - The resume ID
- * @param {string} userId - The user ID (for authorization)
- * @returns {Promise<Object|null>} - Resume object or null if not found
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object|null>} Resume object or null if not found
  */
-async function findById(id, userId) {
+async function findById(resumeId, userId) {
   try {
-    const resume = await Resume.findOne({
-      where: { id, userId }
+    return await Resume.findOne({
+      where: { id: resumeId, userId }
     });
-    return resume;
   } catch (error) {
-    logger.error(`Error finding resume ${id}: ${error.message}`);
+    logger.error(`Repository error - findById: ${error.message}`, error);
     throw error;
   }
 }
 
 /**
  * Create a new resume
- * @param {Object} resumeData - The resume data
- * @returns {Promise<Object>} - The created resume
+ * @param {Object} resumeData - Resume data
+ * @returns {Promise<Object>} Created resume
  */
 async function create(resumeData) {
   try {
-    const resume = await Resume.create(resumeData);
-    return resume;
+    return await Resume.create(resumeData);
   } catch (error) {
-    logger.error(`Error creating resume: ${error.message}`);
+    logger.error(`Repository error - create: ${error.message}`, error);
     throw error;
   }
 }
 
 /**
  * Update a resume
- * @param {string} id - The resume ID
- * @param {string} userId - The user ID (for authorization)
- * @param {Object} updateData - The data to update
- * @returns {Promise<Object|null>} - Updated resume or null if not found
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @param {Object} updateData - Data to update
+ * @returns {Promise<Object|null>} Updated resume or null if not found
  */
-async function update(id, userId, updateData) {
+async function update(resumeId, userId, updateData) {
   try {
     const resume = await Resume.findOne({
-      where: { id, userId }
+      where: { id: resumeId, userId }
     });
     
     if (!resume) return null;
     
-    // Update fields
+    // Update resume properties
     Object.assign(resume, updateData);
     
     // Save changes
@@ -82,21 +80,21 @@ async function update(id, userId, updateData) {
     
     return resume;
   } catch (error) {
-    logger.error(`Error updating resume ${id}: ${error.message}`);
+    logger.error(`Repository error - update: ${error.message}`, error);
     throw error;
   }
 }
 
 /**
  * Delete a resume
- * @param {string} id - The resume ID
- * @param {string} userId - The user ID (for authorization)
- * @returns {Promise<boolean>} - Whether the resume was deleted
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @returns {Promise<boolean>} Whether the resume was deleted
  */
-async function remove(id, userId) {
+async function remove(resumeId, userId) {
   try {
     const resume = await Resume.findOne({
-      where: { id, userId }
+      where: { id: resumeId, userId }
     });
     
     if (!resume) return false;
@@ -104,7 +102,53 @@ async function remove(id, userId) {
     await resume.destroy();
     return true;
   } catch (error) {
-    logger.error(`Error deleting resume ${id}: ${error.message}`);
+    logger.error(`Repository error - remove: ${error.message}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Find resumes with a specific status
+ * @param {string} status - Status to filter by
+ * @param {number} limit - Maximum number of records to return
+ * @returns {Promise<Array>} Array of resume objects
+ */
+async function findByStatus(status, limit = 10) {
+  try {
+    return await Resume.findAll({
+      where: { customizationStatus: status },
+      limit,
+      order: [['createdAt', 'ASC']]
+    });
+  } catch (error) {
+    logger.error(`Repository error - findByStatus: ${error.message}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Update resume status
+ * @param {string} resumeId - Resume ID
+ * @param {string} status - New status
+ * @param {Object} additionalData - Additional data to update
+ * @returns {Promise<Object|null>} Updated resume or null if not found
+ */
+async function updateStatus(resumeId, status, additionalData = {}) {
+  try {
+    const resume = await Resume.findByPk(resumeId);
+    
+    if (!resume) return null;
+    
+    // Update status and additional data
+    resume.customizationStatus = status;
+    Object.assign(resume, additionalData);
+    
+    // Save changes
+    await resume.save();
+    
+    return resume;
+  } catch (error) {
+    logger.error(`Repository error - updateStatus: ${error.message}`, error);
     throw error;
   }
 }
@@ -114,5 +158,7 @@ module.exports = {
   findById,
   create,
   update,
-  remove
+  remove,
+  findByStatus,
+  updateStatus
 };
