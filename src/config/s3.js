@@ -1,6 +1,5 @@
 const AWS = require('aws-sdk');
 const logger = require('../utils/logger');
-const crypto = require('crypto');
 
 // Check if we're in mock mode for development
 const useMockS3 = process.env.NODE_ENV === 'development' && process.env.MOCK_SERVICES === 'true';

@@ -15,7 +15,7 @@ let n8nClient;
  */
 function init() {
   // Get configuration
-  const { webhookUrl, webhookPath, fullWebhookUrl } = n8n;
+  const { webhookUrl, fullWebhookUrl } = n8n;
   const timeoutMs = customization.timeoutMs;
   const maxRetries = customization.maxRetries;
   

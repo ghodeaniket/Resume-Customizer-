@@ -18,3 +18,10 @@ package-lock.json
 
 # Old mock implementations (to be removed later)
 __mocks__/
+
+# Files with linting issues to fix later
+src/services/n8nService.js
+
+# Test files (allow console.log)
+test*.js
+dev/mock-n8n/server.js

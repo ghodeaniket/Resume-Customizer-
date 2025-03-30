@@ -5,7 +5,7 @@
  * It registers all services, repositories, controllers, and utilities.
  */
 
-const { createContainer, asClass, asFunction, asValue, Lifetime } = require('awilix');
+const { createContainer, asFunction, asValue } = require('awilix');
 const logger = require('../utils/logger');
 
 // Import services

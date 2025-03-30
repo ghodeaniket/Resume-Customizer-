@@ -38,13 +38,13 @@ async function customizeResume(data) {
   const techKeywords = keywordExtractor(
     jobDescription, 
     ['JavaScript', 'React', 'Node.js', 'Python', 'Java', 'AWS', 'Docker', 'Kubernetes', 
-    'SQL', 'NoSQL', 'MongoDB', 'DevOps', 'Machine Learning', 'AI', 'Cloud']
+      'SQL', 'NoSQL', 'MongoDB', 'DevOps', 'Machine Learning', 'AI', 'Cloud']
   );
   
   const roleKeywords = keywordExtractor(
     jobDescription,
     ['Frontend', 'Backend', 'Full Stack', 'DevOps', 'Data Science', 'Manager', 
-    'Lead', 'Senior', 'Junior', 'Architect', 'Designer']
+      'Lead', 'Senior', 'Junior', 'Architect', 'Designer']
   );
   
   // Create a customized resume based on the job description and extracted keywords

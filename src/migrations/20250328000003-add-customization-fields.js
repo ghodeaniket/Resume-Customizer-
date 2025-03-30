@@ -41,7 +41,7 @@ module.exports = {
     });
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async (queryInterface, _Sequelize) => {
     await queryInterface.removeColumn('Resumes', 'customizationStatus');
     await queryInterface.removeColumn('Resumes', 'customizedContent');
     await queryInterface.removeColumn('Resumes', 'customizationError');

@@ -144,7 +144,7 @@ const generatePdfFromMarkdown = async (markdownContent, options = {}) => {
       </html>
     `;
     
-    logger.debug(`Starting Puppeteer to generate PDF`);
+    logger.debug('Starting Puppeteer to generate PDF');
     
     // For development mode without Puppeteer, create a simple PDF
     if (process.env.NODE_ENV === 'development') {
@@ -155,11 +155,11 @@ const generatePdfFromMarkdown = async (markdownContent, options = {}) => {
           headless: 'new'
         });
         
-        logger.debug(`Puppeteer browser launched`);
+        logger.debug('Puppeteer browser launched');
         
         // Create page
         const page = await browser.newPage();
-        logger.debug(`Puppeteer page created`);
+        logger.debug('Puppeteer page created');
         
         // Set content with error handling
         try {
@@ -167,7 +167,7 @@ const generatePdfFromMarkdown = async (markdownContent, options = {}) => {
             waitUntil: 'networkidle0',
             timeout: 30000
           });
-          logger.debug(`Content set on page`);
+          logger.debug('Content set on page');
         } catch (contentError) {
           logger.error(`Error setting page content: ${contentError.message}`);
           throw contentError;
@@ -195,7 +195,7 @@ const generatePdfFromMarkdown = async (markdownContent, options = {}) => {
         
         // Close browser
         await browser.close();
-        logger.debug(`Puppeteer browser closed`);
+        logger.debug('Puppeteer browser closed');
         
         return pdfBuffer;
       } catch (puppeteerError) {

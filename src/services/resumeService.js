@@ -1,7 +1,6 @@
 const Resume = require('../models/resume');
-const { sequelize } = require('../config/database');
-const convertPdfToMarkdown = require('../utils/convertPdfToMarkdown');
 const logger = require('../utils/logger');
+const convertPdfToMarkdown = require('../utils/convertPdfToMarkdown');
 const path = require('path');
 const crypto = require('crypto');
 const services = require('./index');
@@ -262,7 +261,7 @@ exports.convertResumeToMarkdown = async (resumeId, userId) => {
  */
 exports.customizeResume = async (resumeId, userId, customizationData) => {
   try {
-    const { jobDescription, jobTitle, companyName } = customizationData;
+    const { _jobDescription, jobTitle, companyName } = customizationData;
     
     // Find resume
     const resume = await Resume.findOne({
@@ -534,18 +533,18 @@ exports.getCustomizationStatus = async (resumeId, userId) => {
     // Calculate progress percentage based on status
     let progress = 0;
     switch (resume.customizationStatus) {
-      case 'pending':
-        progress = 10;
-        break;
-      case 'processing':
-        progress = 50;
-        break;
-      case 'completed':
-        progress = 100;
-        break;
-      case 'failed':
-        progress = 0;
-        break;
+    case 'pending':
+      progress = 10;
+      break;
+    case 'processing':
+      progress = 50;
+      break;
+    case 'completed':
+      progress = 100;
+      break;
+    case 'failed':
+      progress = 0;
+      break;
     }
     
     return {
@@ -634,8 +633,8 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
           resume,
           fileBuffer,
           contentType: resume.fileType === 'pdf' ? 'application/pdf' : 
-                      resume.fileType === 'doc' ? 'application/msword' : 
-                      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            resume.fileType === 'doc' ? 'application/msword' : 
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           fileName: resume.originalFileName || `${resume.name}.${resume.fileType}`
         };
       } catch (s3Error) {

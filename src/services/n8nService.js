@@ -22,7 +22,7 @@ exports.processWebhook = async (webhookData) => {
     }
 
     // Process webhook data based on type/action
-    const { type, action, data } = webhookData;
+    const { type, action, _data } = webhookData;
 
     // Example: Process a resume analysis webhook
     if (type === 'resume' && action === 'analyzed') {
@@ -96,7 +96,7 @@ exports.triggerWorkflow = async (workflowId, data, userId) => {
 /**
  * Get workflow execution status
  */
-exports.getWorkflowStatus = async (executionId, userId) => {
+exports.getWorkflowStatus = async (executionId, _userId) => {
   try {
     // Call n8n API to get execution status
     const response = await axios.get(
@@ -131,31 +131,26 @@ exports.getWorkflowStatus = async (executionId, userId) => {
 /**
  * Get all available workflows
  */
-exports.getAvailableWorkflows = async (userId) => {
-  try {
-    // In a real implementation, this would call the n8n API
-    // or a database to get workflows available to this user
-    
-    // Mock implementation
-    return [
-      {
-        id: 'resume-analyzer',
-        name: 'Resume Analyzer',
-        description: 'Analyzes resume content and extracts key information'
-      },
-      {
-        id: 'resume-customizer',
-        name: 'Resume Customizer',
-        description: 'Customizes resume based on job description'
-      },
-      {
-        id: 'job-matcher',
-        name: 'Job Matcher',
-        description: 'Matches resume with job postings'
-      }
-    ];
-  } catch (error) {
-    logger.error('Get available workflows service error:', error);
-    throw error;
-  }
+exports.getAvailableWorkflows = async (_userId) => {
+  // In a real implementation, this would call the n8n API
+  // or a database to get workflows available to this user
+  
+  // Mock implementation
+  return [
+    {
+      id: 'resume-analyzer',
+      name: 'Resume Analyzer',
+      description: 'Analyzes resume content and extracts key information'
+    },
+    {
+      id: 'resume-customizer',
+      name: 'Resume Customizer',
+      description: 'Customizes resume based on job description'
+    },
+    {
+      id: 'job-matcher',
+      name: 'Job Matcher',
+      description: 'Matches resume with job postings'
+    }
+  ];
 };

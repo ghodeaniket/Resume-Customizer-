@@ -1,6 +1,5 @@
 const User = require('../models/user');
 const { generateToken } = require('../config/auth');
-const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const logger = require('../utils/logger');
 

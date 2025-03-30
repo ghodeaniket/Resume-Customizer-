@@ -26,6 +26,7 @@ dotenv.config();
 if (process.env.NODE_ENV !== 'development') {
   require('./config/env');
 } else {
+  // eslint-disable-next-line no-console
   console.log('Running in development mode, skipping environment validation');
 }
 
@@ -39,13 +40,13 @@ testConnection();
 // Initialize services
 try {
   // Initialize storage service
-  const storageService = services.storage();
+  const _storageService = services.storage();
   
   // Initialize AI service
-  const aiService = services.ai();
+  const _aiService = services.ai();
   
   // Initialize queue service
-  const queueService = services.queue();
+  const _queueService = services.queue();
   
   // Initialize resume customization worker
   require('./workers/resumeWorker');
@@ -69,12 +70,12 @@ if (process.env.NODE_ENV === 'development') {
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
-        defaultSrc: ["'self'", "http://localhost:*"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "http://localhost:*"],
-        connectSrc: ["'self'", "http://localhost:*"],
-        imgSrc: ["'self'", "data:", "http://localhost:*"],
-        styleSrc: ["'self'", "'unsafe-inline'", "http://localhost:*"],
-        fontSrc: ["'self'", "data:", "http://localhost:*"]
+        defaultSrc: ['\'self\'', 'http://localhost:*'],
+        scriptSrc: ['\'self\'', '\'unsafe-inline\'', '\'unsafe-eval\'', 'http://localhost:*'],
+        connectSrc: ['\'self\'', 'http://localhost:*'],
+        imgSrc: ['\'self\'', 'data:', 'http://localhost:*'],
+        styleSrc: ['\'self\'', '\'unsafe-inline\'', 'http://localhost:*'],
+        fontSrc: ['\'self\'', 'data:', 'http://localhost:*']
       }
     }
   }));
