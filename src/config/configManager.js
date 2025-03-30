@@ -41,24 +41,24 @@ const configSchema = {
   database: {
     host: {
       value: process.env.DB_HOST,
-      required: process.env.NODE_ENV !== 'development'
+      required: process.env.NODE_ENV === 'production'
     },
     port: {
       value: process.env.DB_PORT || 5432,
       validator: (val) => !isNaN(val),
-      required: process.env.NODE_ENV !== 'development'
+      required: false
     },
     name: {
       value: process.env.DB_NAME,
-      required: process.env.NODE_ENV !== 'development'
+      required: process.env.NODE_ENV === 'production'
     },
     username: {
       value: process.env.DB_USERNAME,
-      required: process.env.NODE_ENV !== 'development'
+      required: process.env.NODE_ENV === 'production'
     },
     password: {
       value: process.env.DB_PASSWORD,
-      required: process.env.NODE_ENV !== 'development'
+      required: process.env.NODE_ENV === 'production'
     },
     dialect: {
       value: process.env.DB_DIALECT || 'postgres',
@@ -234,8 +234,9 @@ function buildConfig() {
   return config;
 }
 
-// Validate configuration in non-development environments
-if (process.env.NODE_ENV !== 'development') {
+// Validate configuration in production environments only
+// Skip validation in development and test environments
+if (process.env.NODE_ENV === 'production') {
   const validationErrors = validateConfig();
   
   if (validationErrors.length > 0) {
