@@ -45,18 +45,18 @@ const mapToCustomizationStatusResponse = (resume, options = {}) => {
   // Calculate progress percentage based on status
   let progress = 0;
   switch (resume.customizationStatus) {
-    case 'pending':
-      progress = 10;
-      break;
-    case 'processing':
-      progress = 50;
-      break;
-    case 'completed':
-      progress = 100;
-      break;
-    case 'failed':
-      progress = 0;
-      break;
+  case 'pending':
+    progress = 10;
+    break;
+  case 'processing':
+    progress = 50;
+    break;
+  case 'completed':
+    progress = 100;
+    break;
+  case 'failed':
+    progress = 0;
+    break;
   }
   
   const response = {

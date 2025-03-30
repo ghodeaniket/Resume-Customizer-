@@ -6,12 +6,13 @@
  */
 
 const logger = require('../utils/logger');
-const config = require('../config/configManager');
 const resumeRepository = require('../repositories/resumeRepository');
 
 // Service implementations
 const ResumeService = require('./implementations/resumeServiceImpl');
 const { getService: getServiceFromFactory } = require('./serviceFactory');
+// Config is imported by other modules, kept for consistency
+// const config = require('../config/configManager');
 
 // Cached service instances
 const serviceInstances = new Map();
@@ -41,36 +42,38 @@ function getService(serviceType) {
   let serviceInstance;
 
   switch (serviceType) {
-    case ServiceType.RESUME:
-      // ResumeService requires other services, so get them first
-      const storageService = getService(ServiceType.STORAGE);
-      const aiService = getService(ServiceType.AI);
-      const queueService = getService(ServiceType.QUEUE);
+  case ServiceType.RESUME: {
+    // ResumeService requires other services, so get them first
+    const storageService = getService(ServiceType.STORAGE);
+    const aiService = getService(ServiceType.AI);
+    const queueService = getService(ServiceType.QUEUE);
       
-      // Create ResumeService with dependencies
-      serviceInstance = new ResumeService({
-        resumeRepository,
-        storageService,
-        aiService,
-        queueService
-      });
-      break;
-      
-    case ServiceType.STORAGE:
-    case ServiceType.AI:
-    case ServiceType.QUEUE:
-    case ServiceType.AUTH:
-      // These services are provided by the legacy factory
-      serviceInstance = getServiceFromFactory(
-        serviceType === ServiceType.STORAGE ? 'storage' :
+    // Create ResumeService with dependencies
+    serviceInstance = new ResumeService({
+      resumeRepository,
+      storageService,
+      aiService,
+      queueService
+    });
+    break;
+  }
+    
+  case ServiceType.STORAGE:
+  case ServiceType.AI:
+  case ServiceType.QUEUE:
+  case ServiceType.AUTH: {
+    // These services are provided by the legacy factory
+    serviceInstance = getServiceFromFactory(
+      serviceType === ServiceType.STORAGE ? 'storage' :
         serviceType === ServiceType.AI ? 'ai' :
-        serviceType === ServiceType.QUEUE ? 'queue' :
-        'auth'
-      );
-      break;
+          serviceType === ServiceType.QUEUE ? 'queue' :
+            'auth'
+    );
+    break;
+  }
       
-    default:
-      throw new Error(`Unknown service type: ${serviceType}`);
+  default:
+    throw new Error(`Unknown service type: ${serviceType}`);
   }
   
   // Cache the instance

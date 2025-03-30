@@ -153,7 +153,7 @@ describe('Auth API Endpoints', () => {
         password: 'password123'
       };
       
-      const user = await User.create(userData);
+      await User.create(userData);
 
       // Login to get token
       const loginResponse = await request(app)

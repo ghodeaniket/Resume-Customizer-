@@ -6,7 +6,9 @@ const app = express();
 app.use(express.json());
 
 // Create mocks directly in the test file
-const mockAuthService = {
+// We're defining but not using this service since it might be needed in the future
+// Renamed with underscore prefix to match the linting rule
+const _mockAuthService = {
   registerUser: jest.fn(),
   loginUser: jest.fn(),
   updateUserProfile: jest.fn(),

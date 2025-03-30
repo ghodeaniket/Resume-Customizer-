@@ -6,8 +6,9 @@
 const { ServiceType, getService } = require('../services/serviceRegistry');
 const { 
   withErrorHandling, 
-  successResponse, 
-  errorResponse 
+  successResponse,
+  // Commented out as it's unused
+  // errorResponse
 } = require('../utils/controllerUtils');
 const {
   ValidationError,
