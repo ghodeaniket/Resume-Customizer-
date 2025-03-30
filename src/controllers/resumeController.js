@@ -1,429 +1,267 @@
+/**
+ * Resume Controller
+ * Handles HTTP requests related to resumes
+ */
+
 const resumeService = require('../services/resumeService');
-const logger = require('../utils/logger');
+const { 
+  withErrorHandling, 
+  successResponse, 
+  errorResponse 
+} = require('../utils/controllerUtils');
 
 /**
  * Get all resumes for the current user
  */
-exports.getAllResumes = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const resumes = await resumeService.getUserResumes(userId);
+exports.getAllResumes = withErrorHandling(async (req, res) => {
+  const userId = req.user.id;
+  const resumes = await resumeService.getUserResumes(userId);
 
-    return res.status(200).json({
-      status: 'success',
-      results: resumes.length,
-      data: {
-        resumes
-      }
-    });
-  } catch (error) {
-    logger.error('Get all resumes error:', error);
-    next(error);
-  }
-};
+  return successResponse(res, 200, 'Resumes retrieved successfully', {
+    results: resumes.length,
+    resumes
+  });
+}, 'Get all resumes');
 
 /**
  * Get a specific resume
  */
-exports.getResume = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
+exports.getResume = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
 
-    const resume = await resumeService.getResumeById(id, userId);
+  const resume = await resumeService.getResumeById(id, userId);
 
-    if (!resume) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      data: {
-        resume
-      }
-    });
-  } catch (error) {
-    logger.error('Get resume error:', error);
-    next(error);
+  if (!resume) {
+    return errorResponse(res, 404, 'Resume not found');
   }
-};
+
+  return successResponse(res, 200, 'Resume retrieved successfully', { resume });
+}, 'Get resume');
 
 /**
  * Upload a new resume
  */
-exports.uploadResume = async (req, res, next) => {
-  try {
-    // Multer middleware will attach file to req.file
-    if (!req.file) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Please upload a resume file'
-      });
-    }
-
-    const { name, description } = req.body;
-    const userId = req.user.id;
-    const file = req.file;
-
-    // Create resume
-    const resume = await resumeService.createResume({
-      userId,
-      name: name || file.originalname,
-      description,
-      file
-    });
-
-    return res.status(201).json({
-      status: 'success',
-      message: 'Resume uploaded successfully',
-      data: {
-        resume
-      }
-    });
-  } catch (error) {
-    logger.error('Upload resume error:', error);
-    next(error);
+exports.uploadResume = withErrorHandling(async (req, res) => {
+  // Multer middleware will attach file to req.file
+  if (!req.file) {
+    return errorResponse(res, 400, 'Please upload a resume file');
   }
-};
+
+  const { name, description } = req.body;
+  const userId = req.user.id;
+  const file = req.file;
+
+  // Create resume
+  const resume = await resumeService.createResume({
+    userId,
+    name: name || file.originalname,
+    description,
+    file
+  });
+
+  return successResponse(res, 201, 'Resume uploaded successfully', { resume });
+}, 'Upload resume');
 
 /**
  * Update resume details
  */
-exports.updateResume = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { name, description, isPublic } = req.body;
-    const userId = req.user.id;
+exports.updateResume = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const { name, description, isPublic } = req.body;
+  const userId = req.user.id;
 
-    // Update resume
-    const resume = await resumeService.updateResumeDetails(id, userId, {
-      name,
-      description,
-      isPublic
-    });
+  // Update resume
+  const resume = await resumeService.updateResumeDetails(id, userId, {
+    name,
+    description,
+    isPublic
+  });
 
-    if (!resume) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      message: 'Resume updated successfully',
-      data: {
-        resume
-      }
-    });
-  } catch (error) {
-    logger.error('Update resume error:', error);
-    next(error);
+  if (!resume) {
+    return errorResponse(res, 404, 'Resume not found');
   }
-};
+
+  return successResponse(res, 200, 'Resume updated successfully', { resume });
+}, 'Update resume');
 
 /**
  * Delete a resume
  */
-exports.deleteResume = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
+exports.deleteResume = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
 
-    // Delete resume
-    const success = await resumeService.deleteResume(id, userId);
+  // Delete resume
+  const success = await resumeService.deleteResume(id, userId);
 
-    if (!success) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-
-    return res.status(204).send();
-  } catch (error) {
-    logger.error('Delete resume error:', error);
-    next(error);
+  if (!success) {
+    return errorResponse(res, 404, 'Resume not found');
   }
-};
+
+  return res.status(204).send();
+}, 'Delete resume');
 
 /**
  * Convert resume to markdown
  */
-exports.convertToMarkdown = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
+exports.convertToMarkdown = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
 
-    // Convert resume to markdown
-    const { resume, markdown } = await resumeService.convertResumeToMarkdown(id, userId);
+  // Convert resume to markdown
+  const { resume, markdown } = await resumeService.convertResumeToMarkdown(id, userId);
 
-    if (!resume) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      message: 'Resume converted to markdown successfully',
-      data: {
-        resume,
-        markdown
-      }
-    });
-  } catch (error) {
-    logger.error('Convert to markdown error:', error);
-    next(error);
+  if (!resume) {
+    return errorResponse(res, 404, 'Resume not found');
   }
-};
+
+  return successResponse(res, 200, 'Resume converted to markdown successfully', {
+    resume,
+    markdown
+  });
+}, 'Convert to markdown');
 
 /**
  * Customize resume based on job description
  */
-exports.customizeResume = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { jobDescription, jobTitle, companyName } = req.body;
-    const userId = req.user.id;
+exports.customizeResume = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const { jobDescription, jobTitle, companyName } = req.body;
+  const userId = req.user.id;
 
-    // Validate input
-    if (!jobDescription) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Please provide job description'
-      });
-    }
-
-    // Customize resume
-    const customizedResume = await resumeService.customizeResume(id, userId, {
-      jobDescription,
-      jobTitle,
-      companyName
-    });
-
-    if (!customizedResume) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      message: 'Resume customized successfully',
-      data: {
-        resume: customizedResume
-      }
-    });
-  } catch (error) {
-    logger.error('Customize resume error:', error);
-    next(error);
+  // Validate input
+  if (!jobDescription) {
+    return errorResponse(res, 400, 'Please provide job description');
   }
-};
+
+  // Customize resume
+  const customizedResume = await resumeService.customizeResume(id, userId, {
+    jobDescription,
+    jobTitle,
+    companyName
+  });
+
+  if (!customizedResume) {
+    return errorResponse(res, 404, 'Resume not found');
+  }
+
+  return successResponse(res, 200, 'Resume customization has been queued', {
+    resume: customizedResume
+  });
+}, 'Customize resume');
 
 /**
  * Share a resume (make it public/private)
  */
-exports.shareResume = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { isPublic } = req.body;
-    const userId = req.user.id;
+exports.shareResume = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const { isPublic } = req.body;
+  const userId = req.user.id;
 
-    // Validate input
-    if (isPublic === undefined) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Please specify isPublic value'
-      });
-    }
-
-    // Update resume sharing status
-    const resume = await resumeService.updateResumeSharing(id, userId, isPublic);
-
-    if (!resume) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      message: isPublic ? 'Resume shared successfully' : 'Resume sharing disabled',
-      data: {
-        resume
-      }
-    });
-  } catch (error) {
-    logger.error('Share resume error:', error);
-    next(error);
+  // Validate input
+  if (isPublic === undefined) {
+    return errorResponse(res, 400, 'Please specify isPublic value');
   }
-};
+
+  // Update resume sharing status
+  const resume = await resumeService.updateResumeSharing(id, userId, isPublic);
+
+  if (!resume) {
+    return errorResponse(res, 404, 'Resume not found');
+  }
+
+  return successResponse(
+    res, 
+    200, 
+    isPublic ? 'Resume shared successfully' : 'Resume sharing disabled', 
+    { resume }
+  );
+}, 'Share resume');
 
 /**
  * Get public link for a shared resume
  */
-exports.getPublicLink = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
+exports.getPublicLink = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
 
-    // Get public link
-    const { resume, publicLink } = await resumeService.getResumePublicLink(id, userId);
+  // Get public link
+  const { resume, publicLink } = await resumeService.getResumePublicLink(id, userId);
 
-    if (!resume) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Resume not found'
-      });
-    }
-
-    if (!resume.isPublic) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Resume is not shared publicly'
-      });
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      data: {
-        resume,
-        publicLink
-      }
-    });
-  } catch (error) {
-    logger.error('Get public link error:', error);
-    next(error);
+  if (!resume) {
+    return errorResponse(res, 404, 'Resume not found');
   }
-};
+
+  if (!resume.isPublic) {
+    return errorResponse(res, 400, 'Resume is not shared publicly');
+  }
+
+  return successResponse(res, 200, 'Public link retrieved successfully', {
+    resume,
+    publicLink
+  });
+}, 'Get public link');
 
 /**
  * Upload and customize resume in one step
  */
-exports.uploadAndCustomize = async (req, res, next) => {
-  try {
-    // Validation is handled by the middleware
-    const userId = req.user.id;
-    const file = req.file;
-    const { 
-      jobDescription, 
-      jobTitle, 
-      companyName,
-      name // Optional custom name
-    } = req.body;
+exports.uploadAndCustomize = withErrorHandling(async (req, res) => {
+  // Validation is handled by the middleware
+  const userId = req.user.id;
+  const file = req.file;
+  const { 
+    jobDescription, 
+    jobTitle, 
+    companyName,
+    name // Optional custom name
+  } = req.body;
 
-    logger.info('Uploading and customizing new resume');
-    
-    // Process upload and start customization
-    const result = await resumeService.uploadAndCustomize({
-      userId,
-      name: name || file.originalname,
-      file,
-      jobDescription,
-      jobTitle,
-      companyName
-    });
+  // Process upload and start customization
+  const result = await resumeService.uploadAndCustomize({
+    userId,
+    name: name || file.originalname,
+    file,
+    jobDescription,
+    jobTitle,
+    companyName
+  });
 
-    return res.status(202).json({
-      status: 'success',
-      message: 'Resume customization has been queued',
-      data: {
-        resumeId: result.id,
-        status: result.customizationStatus,
-        jobId: result.jobId,
-        estimatedTimeSeconds: 60 // Realistic estimate
-      }
-    });
-  } catch (error) {
-    logger.error(`Upload and customize controller error: ${error.message}`);
-    
-    // Use error's status code if available, otherwise default to 500
-    const statusCode = error.statusCode || 500;
-    
-    return res.status(statusCode).json({
-      status: 'fail',
-      message: error.message,
-      error: error.originalError ? {
-        type: error.originalError.name,
-        details: error.originalError.message
-      } : undefined
-    });
-  }
-};
+  return successResponse(res, 202, 'Resume customization has been queued', {
+    resumeId: result.id,
+    status: result.customizationStatus,
+    jobId: result.jobId,
+    estimatedTimeSeconds: 60 // Realistic estimate
+  });
+}, 'Upload and customize resume');
 
 /**
  * Get customization status
  */
-exports.getCustomizationStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    
-    const status = await resumeService.getCustomizationStatus(id, userId);
-    
-    return res.status(200).json({
-      status: 'success',
-      data: status
-    });
-  } catch (error) {
-    logger.error(`Get customization status controller error: ${error.message}`);
-    
-    // Use error's status code if available
-    const statusCode = error.statusCode || 500;
-    
-    return res.status(statusCode).json({
-      status: 'fail',
-      message: error.message
-    });
-  }
-};
+exports.getCustomizationStatus = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  
+  const status = await resumeService.getCustomizationStatus(id, userId);
+  
+  return successResponse(res, 200, 'Customization status retrieved successfully', status);
+}, 'Get customization status');
 
 /**
  * Download resume (original or customized)
  */
-exports.downloadResume = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { version = 'customized' } = req.query;
-    const userId = req.user.id;
-    
-    const result = await resumeService.downloadResume(id, userId, version);
-    
-    // Set cache headers for better performance
-    res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
-    res.setHeader('Content-Type', result.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
-    
-    // Send file as response
-    return res.send(result.fileBuffer);
-  } catch (error) {
-    logger.error(`Download resume controller error: ${error.message}`);
-    
-    // Use error's status code if available
-    const statusCode = error.statusCode || 500;
-    
-    // Special case for customization not complete
-    if (error.resumeStatus && statusCode === 400) {
-      return res.status(statusCode).json({
-        status: 'fail',
-        message: error.message,
-        data: {
-          status: error.resumeStatus,
-          error: error.resumeError
-        }
-      });
-    }
-    
-    return res.status(statusCode).json({
-      status: 'fail',
-      message: error.message
-    });
-  }
-};
+exports.downloadResume = withErrorHandling(async (req, res) => {
+  const { id } = req.params;
+  const { version = 'customized' } = req.query;
+  const userId = req.user.id;
+  
+  const result = await resumeService.downloadResume(id, userId, version);
+  
+  // Set cache headers for better performance
+  res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
+  res.setHeader('Content-Type', result.contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+  
+  // Send file as response
+  return res.send(result.fileBuffer);
+}, 'Download resume');

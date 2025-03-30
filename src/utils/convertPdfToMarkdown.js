@@ -85,7 +85,6 @@ const convertPdfToMarkdown = async (pdfBuffer) => {
     
     // Debug the PDF buffer
     logger.info(`PDF buffer size: ${pdfBuffer.length} bytes`);
-    logger.info(`PDF buffer starts with: ${pdfBuffer.toString('utf8', 0, 20)}...`);
     
     // Check if buffer is actually a string (often happens in testing)
     if (typeof pdfBuffer === 'string') {
@@ -114,23 +113,7 @@ const convertPdfToMarkdown = async (pdfBuffer) => {
   } catch (error) {
     logger.error(`PDF to Markdown conversion error: ${error.message}`, error);
     
-    // In case the PDF isn't parsed, let's use a fallback method for testing
-    logger.warn('Using fallback method with Aniket\'s resume');
-    
-    // Use the actual resume content instead of a test resume
-    const fs = require('fs');
-    try {
-      const resumePath = '/Users/aniketghode/development/Planned Projects/resume-customizer-backend/aniket-resume.txt';
-      if (fs.existsSync(resumePath)) {
-        const content = fs.readFileSync(resumePath, 'utf8');
-        logger.info('Successfully loaded actual resume as fallback');
-        return content;
-      }
-    } catch (fsError) {
-      logger.error('Error reading fallback resume:', fsError);
-    }
-    
-    // If all else fails, provide a basic error message
+    // If PDF parsing fails, provide a proper error message
     return `# PDF Conversion Failed\n\nUnable to parse the PDF document. Error: ${error.message}\n\nPlease try uploading a different format or contact support.`;
   }
 };

@@ -1,12 +1,30 @@
+/**
+ * Resume Service
+ * 
+ * This service handles business logic related to resumes,
+ * including creation, customization, and management.
+ */
+
 const Resume = require('../models/resume');
 const logger = require('../utils/logger');
 const convertPdfToMarkdown = require('../utils/convertPdfToMarkdown');
-const path = require('path');
-const crypto = require('crypto');
+const { 
+  getFileTypeFromExtension, 
+  generateUniqueFilename,
+  getContentTypeFromFileType
+} = require('../utils/fileUtils');
+const {
+  mapToBasicResponse,
+  mapToDetailedResponse,
+  mapToCustomizationStatusResponse,
+  mapToUploadAndCustomizeResponse
+} = require('../utils/resumeMapper');
 const services = require('./index');
 
 /**
  * Get all resumes for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} Array of resume objects
  */
 exports.getUserResumes = async (userId) => {
   try {
@@ -15,17 +33,7 @@ exports.getUserResumes = async (userId) => {
       order: [['updatedAt', 'DESC']]
     });
 
-    return resumes.map(resume => ({
-      id: resume.id,
-      name: resume.name,
-      description: resume.description,
-      fileType: resume.fileType,
-      fileSize: resume.fileSize,
-      lastModified: resume.lastModified,
-      isPublic: resume.isPublic,
-      createdAt: resume.createdAt,
-      updatedAt: resume.updatedAt
-    }));
+    return resumes.map(resume => mapToBasicResponse(resume));
   } catch (error) {
     logger.error('Get user resumes service error:', error);
     throw error;
@@ -34,6 +42,9 @@ exports.getUserResumes = async (userId) => {
 
 /**
  * Get resume by ID
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object|null>} Resume object or null if not found
  */
 exports.getResumeById = async (resumeId, userId) => {
   try {
@@ -43,20 +54,7 @@ exports.getResumeById = async (resumeId, userId) => {
 
     if (!resume) return null;
 
-    return {
-      id: resume.id,
-      name: resume.name,
-      description: resume.description,
-      originalFileName: resume.originalFileName,
-      s3Url: resume.s3Url,
-      fileType: resume.fileType,
-      fileSize: resume.fileSize,
-      markdownContent: resume.markdownContent,
-      isPublic: resume.isPublic,
-      lastModified: resume.lastModified,
-      createdAt: resume.createdAt,
-      updatedAt: resume.updatedAt
-    };
+    return mapToDetailedResponse(resume);
   } catch (error) {
     logger.error('Get resume by ID service error:', error);
     throw error;
@@ -65,28 +63,22 @@ exports.getResumeById = async (resumeId, userId) => {
 
 /**
  * Create a new resume
+ * @param {Object} resumeData - Resume data
+ * @param {string} resumeData.userId - User ID
+ * @param {string} resumeData.name - Resume name
+ * @param {string} resumeData.description - Resume description
+ * @param {Object} resumeData.file - File object
+ * @returns {Promise<Object>} Created resume
  */
 exports.createResume = async (resumeData) => {
   try {
     const { userId, name, description, file } = resumeData;
     
-    // Generate unique filename
-    const fileExtension = path.extname(file.originalname).toLowerCase();
-    const fileName = `${userId}/${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
+    // Validate and determine file type
+    const { fileType } = getFileTypeFromExtension(file.originalname);
     
-    // Determine file type
-    let fileType;
-    if (fileExtension === '.pdf') {
-      fileType = 'pdf';
-    } else if (fileExtension === '.doc') {
-      fileType = 'doc';
-    } else if (fileExtension === '.docx') {
-      fileType = 'docx';
-    } else {
-      const error = new Error('Unsupported file type');
-      error.statusCode = 400;
-      throw error;
-    }
+    // Generate unique filename
+    const fileName = generateUniqueFilename(userId, file.originalname);
     
     // Get storage service
     const storageService = services.storage();
@@ -112,19 +104,7 @@ exports.createResume = async (resumeData) => {
       lastModified: new Date()
     });
     
-    return {
-      id: resume.id,
-      name: resume.name,
-      description: resume.description,
-      originalFileName: resume.originalFileName,
-      s3Url: resume.s3Url,
-      fileType: resume.fileType,
-      fileSize: resume.fileSize,
-      isPublic: resume.isPublic,
-      lastModified: resume.lastModified,
-      createdAt: resume.createdAt,
-      updatedAt: resume.updatedAt
-    };
+    return mapToDetailedResponse(resume);
   } catch (error) {
     logger.error('Create resume service error:', error);
     throw error;
@@ -133,6 +113,10 @@ exports.createResume = async (resumeData) => {
 
 /**
  * Update resume details
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @param {Object} updateData - Update data
+ * @returns {Promise<Object|null>} Updated resume or null if not found
  */
 exports.updateResumeDetails = async (resumeId, userId, updateData) => {
   try {
@@ -151,19 +135,7 @@ exports.updateResumeDetails = async (resumeId, userId, updateData) => {
     resume.lastModified = new Date();
     await resume.save();
     
-    return {
-      id: resume.id,
-      name: resume.name,
-      description: resume.description,
-      originalFileName: resume.originalFileName,
-      s3Url: resume.s3Url,
-      fileType: resume.fileType,
-      fileSize: resume.fileSize,
-      isPublic: resume.isPublic,
-      lastModified: resume.lastModified,
-      createdAt: resume.createdAt,
-      updatedAt: resume.updatedAt
-    };
+    return mapToDetailedResponse(resume);
   } catch (error) {
     logger.error('Update resume details service error:', error);
     throw error;
@@ -172,6 +144,9 @@ exports.updateResumeDetails = async (resumeId, userId, updateData) => {
 
 /**
  * Delete a resume
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @returns {Promise<boolean>} Whether the resume was deleted
  */
 exports.deleteResume = async (resumeId, userId) => {
   try {
@@ -200,6 +175,9 @@ exports.deleteResume = async (resumeId, userId) => {
 
 /**
  * Convert resume to markdown
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} Object with resume and markdown
  */
 exports.convertResumeToMarkdown = async (resumeId, userId) => {
   try {
@@ -258,10 +236,14 @@ exports.convertResumeToMarkdown = async (resumeId, userId) => {
 
 /**
  * Customize resume based on job description
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @param {Object} customizationData - Customization data
+ * @returns {Promise<Object|null>} Customized resume or null if not found
  */
 exports.customizeResume = async (resumeId, userId, customizationData) => {
   try {
-    const { _jobDescription, jobTitle, companyName } = customizationData;
+    const { jobDescription, jobTitle, companyName } = customizationData;
     
     // Find resume
     const resume = await Resume.findOne({
@@ -279,28 +261,41 @@ exports.customizeResume = async (resumeId, userId, customizationData) => {
       await resume.reload();
     }
     
-    // TODO: Implement the actual customization logic
-    // This would typically use an AI service or other algorithm
-    // For now, just return the original resume
+    // Update resume with new customization data
+    resume.jobDescription = jobDescription;
+    if (jobTitle) resume.jobTitle = jobTitle;
+    if (companyName) resume.companyName = companyName;
+    resume.customizationStatus = 'pending';
+    resume.customizationError = null;
+    resume.customizationCompletedAt = null;
+    resume.lastModified = new Date();
     
-    return {
-      id: resume.id,
-      name: resume.name,
-      description: resume.description,
-      jobTitle,
-      companyName,
-      customized: true,
-      createdAt: resume.createdAt,
-      updatedAt: resume.updatedAt
-    };
+    await resume.save();
+    
+    // Add job to queue
+    const jobId = await this.queueResumeCustomization(resume.id);
+    
+    logger.info(`Resume ${resume.id} added to customization queue with job ID ${jobId}`);
+    
+    return mapToUploadAndCustomizeResponse(resume, jobId);
   } catch (error) {
-    logger.error('Customize resume service error:', error);
+    logger.error(`Customize resume service error: ${error.message}`);
+    
+    // Add status code if not present
+    if (!error.statusCode) {
+      error.statusCode = 500;
+    }
+    
     throw error;
   }
 };
 
 /**
  * Update resume sharing settings
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @param {boolean} isPublic - Whether the resume is public
+ * @returns {Promise<Object|null>} Updated resume or null if not found
  */
 exports.updateResumeSharing = async (resumeId, userId, isPublic) => {
   try {
@@ -329,6 +324,9 @@ exports.updateResumeSharing = async (resumeId, userId, isPublic) => {
 
 /**
  * Get public link for a shared resume
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} Object with resume and public link
  */
 exports.getResumePublicLink = async (resumeId, userId) => {
   try {
@@ -358,60 +356,9 @@ exports.getResumePublicLink = async (resumeId, userId) => {
 };
 
 /**
- * Customize an existing resume with a new job description
- */
-exports.customizeExistingResume = async (resumeId, userId, customizationData) => {
-  try {
-    const { jobDescription, jobTitle, companyName } = customizationData;
-    
-    // Find resume
-    const resume = await Resume.findOne({
-      where: { id: resumeId, userId }
-    });
-    
-    if (!resume) {
-      const error = new Error('Resume not found');
-      error.statusCode = 404;
-      throw error;
-    }
-    
-    // Update resume with new customization data
-    resume.jobDescription = jobDescription;
-    if (jobTitle) resume.jobTitle = jobTitle;
-    if (companyName) resume.companyName = companyName;
-    resume.customizationStatus = 'pending';
-    resume.customizationError = null;
-    resume.customizationCompletedAt = null;
-    resume.lastModified = new Date();
-    
-    await resume.save();
-    
-    // Import worker module and add job to queue
-    const { queueResumeCustomization } = require('../workers/resumeWorker');
-    const jobId = await queueResumeCustomization(resume.id);
-    
-    logger.info(`Existing resume ${resume.id} added to customization queue with job ID ${jobId}`);
-    
-    return {
-      id: resume.id,
-      name: resume.name,
-      customizationStatus: resume.customizationStatus,
-      jobId
-    };
-  } catch (error) {
-    logger.error(`Customize existing resume service error: ${error.message}`);
-    
-    // Add status code if not present
-    if (!error.statusCode) {
-      error.statusCode = 500;
-    }
-    
-    throw error;
-  }
-};
-
-/**
  * Upload and customize resume in one step
+ * @param {Object} data - Data
+ * @returns {Promise<Object>} Object with resume and job info
  */
 exports.uploadAndCustomize = async (data) => {
   try {
@@ -424,29 +371,16 @@ exports.uploadAndCustomize = async (data) => {
       companyName 
     } = data;
     
-    // Get the storage service
-    const storageService = services.storage();
-    
-    // Validate file type
-    const fileExtension = path.extname(file.originalname).toLowerCase();
-    let fileType;
-    
-    if (fileExtension === '.pdf') {
-      fileType = 'pdf';
-    } else if (fileExtension === '.doc') {
-      fileType = 'doc';
-    } else if (fileExtension === '.docx') {
-      fileType = 'docx';
-    } else {
-      const error = new Error('Unsupported file type. Only PDF, DOC, and DOCX files are allowed.');
-      error.statusCode = 400;
-      throw error;
-    }
+    // Validate and determine file type
+    const { fileType } = getFileTypeFromExtension(file.originalname);
     
     // Generate unique filename
-    const fileName = `${userId}/${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
+    const fileName = generateUniqueFilename(userId, file.originalname);
     
     try {
+      // Get the storage service
+      const storageService = services.storage();
+      
       // Upload file to storage service
       const s3Url = await storageService.uploadFile(
         file.buffer,
@@ -471,18 +405,12 @@ exports.uploadAndCustomize = async (data) => {
         lastModified: new Date()
       });
       
-      // Import worker module and add job to queue
-      const { queueResumeCustomization } = require('../workers/resumeWorker');
-      const jobId = await queueResumeCustomization(resume.id);
+      // Queue customization job
+      const jobId = await this.queueResumeCustomization(resume.id);
       
       logger.info(`Resume ${resume.id} added to customization queue with job ID ${jobId}`);
       
-      return {
-        id: resume.id,
-        name: resume.name,
-        customizationStatus: resume.customizationStatus,
-        jobId
-      };
+      return mapToUploadAndCustomizeResponse(resume, jobId);
     } catch (uploadError) {
       logger.error(`Storage upload error: ${uploadError.message}`);
       
@@ -506,6 +434,9 @@ exports.uploadAndCustomize = async (data) => {
 
 /**
  * Get customization status
+ * @param {string} resumeId - Resume ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} Status object
  */
 exports.getCustomizationStatus = async (resumeId, userId) => {
   try {
@@ -530,36 +461,7 @@ exports.getCustomizationStatus = async (resumeId, userId) => {
       throw error;
     }
     
-    // Calculate progress percentage based on status
-    let progress = 0;
-    switch (resume.customizationStatus) {
-    case 'pending':
-      progress = 10;
-      break;
-    case 'processing':
-      progress = 50;
-      break;
-    case 'completed':
-      progress = 100;
-      break;
-    case 'failed':
-      progress = 0;
-      break;
-    }
-    
-    return {
-      id: resume.id,
-      name: resume.name,
-      status: resume.customizationStatus,
-      progress,
-      error: resume.customizationError,
-      completedAt: resume.customizationCompletedAt,
-      jobTitle: resume.jobTitle,
-      companyName: resume.companyName,
-      canDownload: resume.customizationStatus === 'completed',
-      downloadUrl: resume.customizationStatus === 'completed' ? 
-        `/api/v1/resumes/${resume.id}/download?version=customized` : null
-    };
+    return mapToCustomizationStatusResponse(resume, { includeDownloadUrl: true });
   } catch (error) {
     logger.error(`Get customization status error: ${error.message}`);
     
@@ -574,6 +476,10 @@ exports.getCustomizationStatus = async (resumeId, userId) => {
 
 /**
  * Download resume (original or customized)
+ * @param {string} resumeId - Resume ID 
+ * @param {string} userId - User ID
+ * @param {string} version - Version to download (original or customized)
+ * @returns {Promise<Object>} Object with file data
  */
 exports.downloadResume = async (resumeId, userId, version = 'customized') => {
   try {
@@ -588,7 +494,10 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
       throw error;
     }
     
-    // Determine which version to download
+    // Get storage service
+    const storageService = services.storage();
+    
+    // Determine which version to download and handle accordingly
     if (version === 'customized') {
       // Check if customized version is available
       if (resume.customizationStatus !== 'completed') {
@@ -599,12 +508,8 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
         throw error;
       }
       
-      // Get file from S3 (standardized for both original and customized)
+      // Get file from storage
       try {
-        // Get storage service
-        const storageService = services.storage();
-        
-        // Get file from storage
         const fileBuffer = await storageService.getFile(resume.customizedS3Key);
         
         return {
@@ -613,36 +518,22 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
           contentType: 'application/pdf',
           fileName: `${resume.name}_customized.pdf`
         };
-      } catch (s3Error) {
-        logger.error(`S3 download error for customized resume: ${s3Error.message}`);
-        const error = new Error(`Failed to download customized resume: ${s3Error.message}`);
-        error.statusCode = 500;
-        error.originalError = s3Error;
-        throw error;
+      } catch (storageError) {
+        handleStorageError(storageError, 'customized');
       }
     } else {
-      // Get original file from S3
+      // Get original file from storage
       try {
-        // Get storage service
-        const storageService = services.storage();
-        
-        // Get file from storage
         const fileBuffer = await storageService.getFile(resume.s3Key);
         
         return {
           resume,
           fileBuffer,
-          contentType: resume.fileType === 'pdf' ? 'application/pdf' : 
-            resume.fileType === 'doc' ? 'application/msword' : 
-              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          contentType: getContentTypeFromFileType(resume.fileType),
           fileName: resume.originalFileName || `${resume.name}.${resume.fileType}`
         };
-      } catch (s3Error) {
-        logger.error(`S3 download error for original resume: ${s3Error.message}`);
-        const error = new Error(`Failed to download original resume: ${s3Error.message}`);
-        error.statusCode = 500;
-        error.originalError = s3Error;
-        throw error;
+      } catch (storageError) {
+        handleStorageError(storageError, 'original');
       }
     }
   } catch (error) {
@@ -653,6 +544,44 @@ exports.downloadResume = async (resumeId, userId, version = 'customized') => {
       error.statusCode = 500;
     }
     
+    throw error;
+  }
+};
+
+/**
+ * Helper function to handle storage errors
+ * @param {Error} error - Storage error
+ * @param {string} version - Version being downloaded
+ */
+function handleStorageError(error, version) {
+  logger.error(`S3 download error for ${version} resume: ${error.message}`);
+  const enhancedError = new Error(`Failed to download ${version} resume: ${error.message}`);
+  enhancedError.statusCode = 500;
+  enhancedError.originalError = error;
+  throw enhancedError;
+}
+
+/**
+ * Queue resume customization job
+ * @param {string} resumeId - Resume ID
+ * @returns {Promise<string>} Job ID
+ */
+exports.queueResumeCustomization = async (resumeId) => {
+  try {
+    // Get queue service
+    const queueService = services.queue();
+    
+    // Use default job options from queueService
+    const job = await queueService.addJob(
+      'resume-customization',
+      { resumeId }
+    );
+    
+    logger.info(`Resume customization job ${job.id} added to queue for resume ${resumeId}`);
+    
+    return job.id;
+  } catch (error) {
+    logger.error(`Failed to queue resume customization for ${resumeId}: ${error.message}`);
     throw error;
   }
 };

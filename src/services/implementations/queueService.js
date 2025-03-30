@@ -9,6 +9,17 @@ const { redis } = require('../../config/env');
 
 let resumeQueue;
 
+// Default job options - centralized to avoid duplication
+const DEFAULT_JOB_OPTIONS = {
+  attempts: 3,
+  backoff: {
+    type: 'exponential',
+    delay: 2000
+  },
+  removeOnComplete: true,
+  removeOnFail: false
+};
+
 /**
  * Initialize the service
  */
@@ -22,15 +33,7 @@ function init() {
   // Create queue
   resumeQueue = new Queue('resume-customization', {
     redis: redisConfig,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 1000
-      },
-      removeOnComplete: true,
-      removeOnFail: false
-    }
+    defaultJobOptions: DEFAULT_JOB_OPTIONS
   });
   
   // Log queue events
@@ -57,6 +60,7 @@ function init() {
  * @param {string} jobType - Type of job 
  * @param {Object} data - Job data
  * @param {Object} options - Job options
+ * @returns {Promise<Object>} Job object
  */
 async function addJob(jobType, data, options = {}) {
   if (!resumeQueue) {
@@ -66,7 +70,10 @@ async function addJob(jobType, data, options = {}) {
   // For specific job types, we can add preprocess logic
   let processedData = data;
   
-  const job = await resumeQueue.add(jobType, processedData, options);
+  // Merge with default options
+  const jobOptions = { ...DEFAULT_JOB_OPTIONS, ...options };
+  
+  const job = await resumeQueue.add(jobType, processedData, jobOptions);
   logger.info(`Added job ${job.id} of type ${jobType} to queue`);
   
   return job;
@@ -89,6 +96,7 @@ function registerProcessor(jobType, processor) {
 /**
  * Get a job by ID
  * @param {string} jobId - ID of the job
+ * @returns {Promise<Object>} Job object
  */
 async function getJob(jobId) {
   if (!resumeQueue) {
@@ -114,5 +122,6 @@ module.exports = {
   addJob,
   registerProcessor,
   getJob,
-  destroy
+  destroy,
+  DEFAULT_JOB_OPTIONS
 };
