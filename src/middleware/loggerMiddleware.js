@@ -13,6 +13,7 @@ const { v4: uuidv4 } = require('uuid');
  * @returns {string} Stringified object
  */
 function safeStringify(obj) {
+  const seen = new WeakSet();
   try {
     return JSON.stringify(obj, (key, value) => {
       // Handle circular references
@@ -63,7 +64,6 @@ function requestLogger(req, res, next) {
   
   // Log request body for non-GET requests (with sensitive info redacted)
   if (req.method !== 'GET' && req.body) {
-    const seen = new WeakSet();
     logger.debug('Request Body:', {
       requestId: req.requestId,
       body: safeStringify(req.body)
@@ -89,7 +89,6 @@ function requestLogger(req, res, next) {
     
     // For non-200 responses, log the response body (with sensitive info redacted)
     if (res.statusCode >= 400) {
-      const seen = new WeakSet();
       let responseBody;
       
       // Parse JSON if it's a string

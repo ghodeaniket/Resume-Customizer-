@@ -10,7 +10,6 @@ const {
   setupBeforeEach, 
   teardownAfterAll,
   mockStorageService,
-  mockAIService,
   mockQueueService
 } = require('./setup');
 const { getService, ServiceType } = require('../../src/services/serviceRegistry');
