@@ -10,7 +10,7 @@ const config = require('../config/configManager');
 
 // Repositories
 const resumeRepository = require('../repositories/resumeRepository');
-const userRepository = require('../repositories/userRepository');
+const User = require('../models/user');
 
 // Service implementations
 const ResumeService = require('./implementations/resumeServiceImpl');
@@ -112,7 +112,7 @@ function getService(serviceType) {
   case ServiceType.AUTH: {
     // Create AuthService with dependencies
     serviceInstance = new AuthService({
-      userModel: userRepository,
+      userModel: User,
       emailService: null // We can inject an email service later if needed
     });
     break;

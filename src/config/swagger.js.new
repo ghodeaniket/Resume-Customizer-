@@ -1,0 +1,980 @@
+/**
+ * OpenAPI (Swagger) Documentation
+ */
+
+module.exports = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Resume Customizer API',
+    version: '1.0.0',
+    description: 'API for customizing resumes based on job descriptions using AI',
+    contact: {
+      name: 'Development Team',
+      email: 'dev@example.com'
+    }
+  },
+  servers: [
+    {
+      url: process.env.PUBLIC_URL || 'http://localhost:3000',
+      description: 'Main API Server'
+    }
+  ],
+  components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT'
+      }
+    },
+    schemas: {
+      // General response schemas
+      SuccessResponse: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            example: 'success'
+          },
+          message: {
+            type: 'string',
+            example: 'Operation completed successfully'
+          },
+          data: {
+            type: 'object'
+          }
+        }
+      },
+      ErrorResponse: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            example: 'error'
+          },
+          message: {
+            type: 'string',
+            example: 'An error occurred'
+          },
+          error: {
+            type: 'object',
+            properties: {
+              code: {
+                type: 'string',
+                example: 'VALIDATION_ERROR'
+              },
+              details: {
+                type: 'object',
+                example: { field: 'email', message: 'Invalid format' }
+              }
+            }
+          }
+        }
+      },
+      
+      // Auth schemas
+      User: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            format: 'uuid',
+            example: '123e4567-e89b-12d3-a456-426614174000'
+          },
+          firstName: {
+            type: 'string',
+            example: 'John'
+          },
+          lastName: {
+            type: 'string',
+            example: 'Doe'
+          },
+          email: {
+            type: 'string',
+            format: 'email',
+            example: 'john.doe@example.com'
+          },
+          role: {
+            type: 'string',
+            enum: ['user', 'admin'],
+            example: 'user'
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time'
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time'
+          }
+        }
+      },
+      RegisterRequest: {
+        type: 'object',
+        required: ['firstName', 'lastName', 'email', 'password'],
+        properties: {
+          firstName: {
+            type: 'string',
+            example: 'John'
+          },
+          lastName: {
+            type: 'string',
+            example: 'Doe'
+          },
+          email: {
+            type: 'string',
+            format: 'email',
+            example: 'john.doe@example.com'
+          },
+          password: {
+            type: 'string',
+            format: 'password',
+            example: 'password123'
+          }
+        }
+      },
+      LoginRequest: {
+        type: 'object',
+        required: ['email', 'password'],
+        properties: {
+          email: {
+            type: 'string',
+            format: 'email',
+            example: 'john.doe@example.com'
+          },
+          password: {
+            type: 'string',
+            format: 'password',
+            example: 'password123'
+          }
+        }
+      },
+      
+      // Resume schemas
+      Resume: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            format: 'uuid',
+            example: '123e4567-e89b-12d3-a456-426614174001'
+          },
+          userId: {
+            type: 'string',
+            format: 'uuid',
+            example: '123e4567-e89b-12d3-a456-426614174000'
+          },
+          name: {
+            type: 'string',
+            example: 'Software Engineer Resume'
+          },
+          description: {
+            type: 'string',
+            example: 'My professional resume for software engineering positions'
+          },
+          originalFileName: {
+            type: 'string',
+            example: 'resume.pdf'
+          },
+          fileType: {
+            type: 'string',
+            enum: ['pdf', 'docx', 'txt'],
+            example: 'pdf'
+          },
+          fileSize: {
+            type: 'integer',
+            example: 12345
+          },
+          isPublic: {
+            type: 'boolean',
+            example: false
+          },
+          customizationStatus: {
+            type: 'string',
+            enum: ['pending', 'processing', 'completed', 'failed'],
+            example: 'completed'
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time'
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time'
+          }
+        }
+      },
+      CustomizeRequest: {
+        type: 'object',
+        required: ['jobDescription'],
+        properties: {
+          jobDescription: {
+            type: 'string',
+            example: 'We are looking for a talented Software Engineer...'
+          },
+          jobTitle: {
+            type: 'string',
+            example: 'Senior Software Engineer'
+          },
+          companyName: {
+            type: 'string',
+            example: 'Tech Innovations Inc.'
+          }
+        }
+      }
+    },
+    responses: {
+      UnauthorizedError: {
+        description: 'Authentication information is missing or invalid',
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/ErrorResponse'
+            }
+          }
+        }
+      },
+      NotFoundError: {
+        description: 'The specified resource was not found',
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/ErrorResponse'
+            }
+          }
+        }
+      },
+      ValidationError: {
+        description: 'The request was invalid',
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/ErrorResponse'
+            }
+          }
+        }
+      },
+      ServerError: {
+        description: 'An internal server error occurred',
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/ErrorResponse'
+            }
+          }
+        }
+      }
+    }
+  },
+  paths: {
+    '/api/v1/auth/register': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Register a new user',
+        description: 'Creates a new user account',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/RegisterRequest'
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'User registered successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'User registered successfully'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        user: {
+                          $ref: '#/components/schemas/User'
+                        },
+                        token: {
+                          type: 'string',
+                          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '400': {
+            $ref: '#/components/responses/ValidationError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    },
+    '/api/v1/auth/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Login to user account',
+        description: 'Authenticate user and return a JWT token',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/LoginRequest'
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Login successful',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Login successful'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        user: {
+                          $ref: '#/components/schemas/User'
+                        },
+                        token: {
+                          type: 'string',
+                          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    },
+    '/api/v1/auth/me': {
+      get: {
+        tags: ['Auth'],
+        summary: 'Get current user',
+        description: 'Returns the currently authenticated user',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        responses: {
+          '200': {
+            description: 'User retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'User retrieved successfully'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        user: {
+                          $ref: '#/components/schemas/User'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    },
+    '/api/v1/resumes': {
+      get: {
+        tags: ['Resumes'],
+        summary: 'Get all resumes',
+        description: 'Returns all resumes for the current user',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        responses: {
+          '200': {
+            description: 'Resumes retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Resumes retrieved successfully'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        results: {
+                          type: 'integer',
+                          example: 2
+                        },
+                        resumes: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/Resume'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      },
+      post: {
+        tags: ['Resumes'],
+        summary: 'Upload a resume',
+        description: 'Uploads a new resume file',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: {
+                  file: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'Resume file (PDF, DOCX, TXT)'
+                  },
+                  name: {
+                    type: 'string',
+                    description: 'Resume name (optional, defaults to filename)'
+                  },
+                  description: {
+                    type: 'string',
+                    description: 'Resume description (optional)'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Resume uploaded successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Resume uploaded successfully'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        resume: {
+                          $ref: '#/components/schemas/Resume'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '400': {
+            $ref: '#/components/responses/ValidationError'
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    },
+    '/api/v1/resumes/{id}': {
+      get: {
+        tags: ['Resumes'],
+        summary: 'Get a resume',
+        description: 'Returns a specific resume by ID',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              format: 'uuid'
+            },
+            description: 'Resume ID'
+          }
+        ],
+        responses: {
+          '200': {
+            description: 'Resume retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Resume retrieved successfully'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        resume: {
+                          $ref: '#/components/schemas/Resume'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '404': {
+            $ref: '#/components/responses/NotFoundError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      },
+      put: {
+        tags: ['Resumes'],
+        summary: 'Update a resume',
+        description: 'Updates a specific resume by ID',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              format: 'uuid'
+            },
+            description: 'Resume ID'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: {
+                    type: 'string',
+                    example: 'Updated Resume Name'
+                  },
+                  description: {
+                    type: 'string',
+                    example: 'Updated resume description'
+                  },
+                  isPublic: {
+                    type: 'boolean',
+                    example: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Resume updated successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Resume updated successfully'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        resume: {
+                          $ref: '#/components/schemas/Resume'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '404': {
+            $ref: '#/components/responses/NotFoundError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      },
+      delete: {
+        tags: ['Resumes'],
+        summary: 'Delete a resume',
+        description: 'Deletes a specific resume by ID',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              format: 'uuid'
+            },
+            description: 'Resume ID'
+          }
+        ],
+        responses: {
+          '204': {
+            description: 'Resume deleted successfully'
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '404': {
+            $ref: '#/components/responses/NotFoundError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    },
+    '/api/v1/resumes/{id}/customize': {
+      post: {
+        tags: ['Resumes'],
+        summary: 'Customize a resume',
+        description: 'Customizes a resume based on job description',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              format: 'uuid'
+            },
+            description: 'Resume ID'
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/CustomizeRequest'
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Resume customization queued successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Resume customization has been queued'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        resume: {
+                          $ref: '#/components/schemas/Resume'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '400': {
+            $ref: '#/components/responses/ValidationError'
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '404': {
+            $ref: '#/components/responses/NotFoundError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    },
+    '/api/v1/resumes/{id}/status': {
+      get: {
+        tags: ['Resumes'],
+        summary: 'Get customization status',
+        description: 'Gets the status of a resume customization job',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              format: 'uuid'
+            },
+            description: 'Resume ID'
+          }
+        ],
+        responses: {
+          '200': {
+            description: 'Status retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Customization status retrieved successfully'
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        resumeId: {
+                          type: 'string',
+                          format: 'uuid',
+                          example: '123e4567-e89b-12d3-a456-426614174001'
+                        },
+                        status: {
+                          type: 'string',
+                          enum: ['pending', 'processing', 'completed', 'failed'],
+                          example: 'completed'
+                        },
+                        error: {
+                          type: 'string',
+                          nullable: true,
+                          example: null
+                        },
+                        completedAt: {
+                          type: 'string',
+                          format: 'date-time',
+                          nullable: true
+                        },
+                        downloadUrl: {
+                          type: 'string',
+                          nullable: true,
+                          example: '/api/v1/resumes/123e4567-e89b-12d3-a456-426614174001/download?version=customized'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '404': {
+            $ref: '#/components/responses/NotFoundError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    },
+    '/api/v1/resumes/{id}/download': {
+      get: {
+        tags: ['Resumes'],
+        summary: 'Download a resume',
+        description: 'Downloads a resume file (original or customized)',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              format: 'uuid'
+            },
+            description: 'Resume ID'
+          },
+          {
+            name: 'version',
+            in: 'query',
+            required: false,
+            schema: {
+              type: 'string',
+              enum: ['original', 'customized'],
+              default: 'customized'
+            },
+            description: 'Resume version to download'
+          }
+        ],
+        responses: {
+          '200': {
+            description: 'Resume file',
+            content: {
+              'application/pdf': {
+                schema: {
+                  type: 'string',
+                  format: 'binary'
+                }
+              },
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document': {
+                schema: {
+                  type: 'string',
+                  format: 'binary'
+                }
+              },
+              'text/plain': {
+                schema: {
+                  type: 'string',
+                  format: 'binary'
+                }
+              }
+            }
+          },
+          '400': {
+            $ref: '#/components/responses/ValidationError'
+          },
+          '401': {
+            $ref: '#/components/responses/UnauthorizedError'
+          },
+          '404': {
+            $ref: '#/components/responses/NotFoundError'
+          },
+          '500': {
+            $ref: '#/components/responses/ServerError'
+          }
+        }
+      }
+    }
+  }
+};
