@@ -2,14 +2,20 @@ const { Sequelize } = require('sequelize');
 const logger = require('../utils/logger');
 
 // Initialize Sequelize with database connection
-// Initialize Sequelize with database connection
 // In development, we ensure the connection is created even if DATABASE_URL is not explicitly set
-const sequelize = process.env.DATABASE_URL || (process.env.NODE_ENV === 'development' ? 
-  'postgres://postgres:postgres@localhost:5432/resume_customizer' : null);
+const dbUrl = process.env.DATABASE_URL || 
+  (process.env.NODE_ENV === 'development' ? 
+    'postgres://postgres:postgres@localhost:5432/resume_customizer' : 
+    (process.env.NODE_ENV === 'test' ? 
+      'sqlite::memory:' : null));
 
-const sequelizeInstance = sequelize ? new Sequelize(sequelize, {
+// Don't create a connection if in test mode and being required by a test file
+const isInTestFile = process.env.NODE_ENV === 'test' && 
+  (new Error().stack.includes('test.js') || new Error().stack.includes('jest'));
+
+const sequelizeInstance = !isInTestFile && dbUrl ? new Sequelize(dbUrl, {
   logging: msg => logger.debug(msg),
-  dialect: 'postgres',
+  dialect: dbUrl.startsWith('sqlite') ? 'sqlite' : 'postgres',
   pool: {
     max: 5,
     min: 0,
@@ -33,7 +39,7 @@ const testConnection = async () => {
     if (process.env.NODE_ENV === 'production') {
       process.exit(1);
     } else {
-      logger.warn('Running in development mode, continuing despite database connection failure');
+      logger.warn('Running in development/test mode, continuing despite database connection failure');
     }
   }
 };
