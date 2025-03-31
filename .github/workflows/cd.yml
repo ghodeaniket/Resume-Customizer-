@@ -66,28 +66,26 @@ jobs:
     - name: Create Lambda handler
       run: |
         mkdir -p src
-        cat > src/lambda.js << 'EOF'
-        const app = require('./app');
-        const serverless = require('serverless-http');
-        
-        const handler = serverless(app);
-        
-        module.exports.handler = async (event, context) => {
-          try {
-            return await handler(event, context);
-          } catch (error) {
-            console.error('FATAL ERROR:', error);
-            return {
-              statusCode: 500,
-              body: JSON.stringify({
-                message: 'Internal server error',
-                errorType: error.name,
-                errorMessage: error.message
-              })
-            };
-          }
-        };
-        EOF
+        echo 'const app = require("./app");' > src/lambda.js
+        echo 'const serverless = require("serverless-http");' >> src/lambda.js
+        echo '' >> src/lambda.js
+        echo 'const handler = serverless(app);' >> src/lambda.js
+        echo '' >> src/lambda.js
+        echo 'module.exports.handler = async (event, context) => {' >> src/lambda.js
+        echo '  try {' >> src/lambda.js
+        echo '    return await handler(event, context);' >> src/lambda.js
+        echo '  } catch (error) {' >> src/lambda.js
+        echo '    console.error("FATAL ERROR:", error);' >> src/lambda.js
+        echo '    return {' >> src/lambda.js
+        echo '      statusCode: 500,' >> src/lambda.js
+        echo '      body: JSON.stringify({' >> src/lambda.js
+        echo '        message: "Internal server error",' >> src/lambda.js
+        echo '        errorType: error.name,' >> src/lambda.js
+        echo '        errorMessage: error.message' >> src/lambda.js
+        echo '      })' >> src/lambda.js
+        echo '    };' >> src/lambda.js
+        echo '  }' >> src/lambda.js
+        echo '};' >> src/lambda.js
     
     - name: Create deployment package
       run: |
@@ -132,19 +130,8 @@ jobs:
           aws s3api create-bucket --bucket $BUCKET_NAME --region ${{ secrets.AWS_REGION }} \
             --create-bucket-configuration LocationConstraint=${{ secrets.AWS_REGION }}
           
-          # Add CORS configuration
-          cat > cors-config.json << 'EOF'
-          {
-            "CORSRules": [
-              {
-                "AllowedHeaders": ["*"],
-                "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-                "AllowedOrigins": ["*"],
-                "MaxAgeSeconds": 3000
-              }
-            ]
-          }
-          EOF
+          # Add CORS configuration using JSON string directly
+          echo '{"CORSRules":[{"AllowedHeaders":["*"],"AllowedMethods":["GET","PUT","POST","DELETE","HEAD"],"AllowedOrigins":["*"],"MaxAgeSeconds":3000}]}' > cors-config.json
           
           aws s3api put-bucket-cors --bucket $BUCKET_NAME --cors-configuration file://cors-config.json
         else
@@ -185,20 +172,7 @@ jobs:
           echo "Creating IAM role $ROLE_NAME"
           
           # Create trust policy document
-          cat > trust-policy.json << 'EOF'
-          {
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Principal": {
-                  "Service": "lambda.amazonaws.com"
-                },
-                "Action": "sts:AssumeRole"
-              }
-            ]
-          }
-          EOF
+          echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}' > trust-policy.json
           
           # Create role
           aws iam create-role --role-name $ROLE_NAME \
@@ -209,36 +183,8 @@ jobs:
             --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
           
           # Create custom policy for DynamoDB and S3 access
-          cat > custom-policy.json << 'EOF'
-          {
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Action": [
-                  "dynamodb:GetItem",
-                  "dynamodb:PutItem",
-                  "dynamodb:UpdateItem",
-                  "dynamodb:DeleteItem",
-                  "dynamodb:Query",
-                  "dynamodb:Scan"
-                ],
-                "Resource": "arn:aws:dynamodb:${{ secrets.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:table/resume-customizer-backend-${STAGE}-resumes"
-              },
-              {
-                "Effect": "Allow",
-                "Action": [
-                  "s3:GetObject",
-                  "s3:PutObject",
-                  "s3:DeleteObject"
-                ],
-                "Resource": [
-                  "arn:aws:s3:::resume-customizer-backend-${STAGE}-resumes/*"
-                ]
-              }
-            ]
-          }
-          EOF
+          POLICY_JSON='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["dynamodb:GetItem","dynamodb:PutItem","dynamodb:UpdateItem","dynamodb:DeleteItem","dynamodb:Query","dynamodb:Scan"],"Resource":"arn:aws:dynamodb:${{ secrets.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:table/resume-customizer-backend-'${STAGE}'-resumes"},{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::resume-customizer-backend-'${STAGE}'-resumes/*"]}]}'
+          echo "$POLICY_JSON" > custom-policy.json
           
           # Attach custom policy
           aws iam put-role-policy --role-name $ROLE_NAME \
