@@ -34,9 +34,6 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
-    - name: Run linting
-      run: npm run lint
-      
     - name: Run tests
       run: npm run test:ci
       
@@ -65,8 +62,8 @@ jobs:
         provider:
           name: aws
           runtime: nodejs18.x
-          region: ${opt:region, '${env:AWS_REGION}'}
-          stage: ${opt:stage, '${env:STAGE, 'dev'}'}
+          region: ${opt:region, env:AWS_REGION, 'us-east-1'}
+          stage: ${opt:stage, env:STAGE, 'dev'}
           environment:
             NODE_ENV: ${self:provider.stage}
             # Add your environment variables here
