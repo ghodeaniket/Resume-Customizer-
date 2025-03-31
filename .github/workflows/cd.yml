@@ -306,6 +306,16 @@ jobs:
             --cors-configuration AllowOrigins='*',AllowMethods='GET,POST,PUT,DELETE,OPTIONS',AllowHeaders='Content-Type,Authorization' \
             --query 'ApiId' --output text)
           
+          echo "Created API Gateway with ID: $API_ID"
+          
+          # Create the stage first
+          echo "Creating stage: $STAGE"
+          aws apigatewayv2 create-stage \
+            --api-id $API_ID \
+            --stage-name $STAGE \
+            --auto-deploy true
+          
+          echo "Creating Lambda integration"
           # Create Lambda integration
           INTEGRATION_ID=$(aws apigatewayv2 create-integration \
             --api-id $API_ID \
@@ -314,18 +324,32 @@ jobs:
             --payload-format-version 2.0 \
             --query 'IntegrationId' --output text)
           
+          echo "Creating default route"
           # Create default route
           aws apigatewayv2 create-route \
             --api-id $API_ID \
             --route-key 'ANY /{proxy+}' \
             --target "integrations/$INTEGRATION_ID"
           
-          # Create deployment
-          aws apigatewayv2 create-deployment \
-            --api-id $API_ID \
-            --stage-name $STAGE
+          # Since auto-deploy is true, we don't need to explicitly create a deployment
         else
           echo "API Gateway already exists: $API_ID"
+          
+          # Check if stage exists
+          STAGE_EXISTS=$(aws apigatewayv2 get-stages \
+            --api-id $API_ID \
+            --query "length(Items[?StageName=='$STAGE'])" \
+            --output text)
+            
+          if [ "$STAGE_EXISTS" -eq "0" ]; then
+            echo "Creating stage: $STAGE"
+            aws apigatewayv2 create-stage \
+              --api-id $API_ID \
+              --stage-name $STAGE \
+              --auto-deploy true
+          else
+            echo "Stage $STAGE already exists"
+          fi
           
           # Update existing integration
           INTEGRATION_ID=$(aws apigatewayv2 get-integrations \
@@ -334,16 +358,14 @@ jobs:
             --output text)
             
           if [ -n "$INTEGRATION_ID" ]; then
+            echo "Updating existing integration"
             aws apigatewayv2 update-integration \
               --api-id $API_ID \
               --integration-id $INTEGRATION_ID \
               --integration-uri "arn:aws:lambda:${{ secrets.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:function:$FUNCTION_NAME"
           fi
           
-          # Create new deployment
-          aws apigatewayv2 create-deployment \
-            --api-id $API_ID \
-            --stage-name $STAGE
+          # No need to create a deployment as auto-deploy is true
         fi
         
         # Add permission for API Gateway to invoke Lambda
