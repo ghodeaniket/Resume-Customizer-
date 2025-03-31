@@ -216,7 +216,7 @@ jobs:
         aws lambda create-function \
           --function-name $FUNCTION_NAME \
           --runtime nodejs18.x \
-          --handler src/lambda.handler \
+          --handler "src/lambda.handler" \
           --role ${{ env.ROLE_ARN }} \
           --zip-file fileb://deployment.zip \
           --timeout 30 \
@@ -228,17 +228,63 @@ jobs:
       run: |
         FUNCTION_NAME="${{ env.FUNCTION_NAME }}"
         
+        # Wait for any in-progress updates to complete
+        echo "Checking if Lambda function is ready for updates..."
+        MAX_ATTEMPTS=30
+        ATTEMPTS=0
+        while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+          STATUS=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.LastUpdateStatus' --output text || echo "Failed")
+          
+          if [ "$STATUS" = "Successful" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "null" ]; then
+            echo "Lambda function is ready for updates. Current status: $STATUS"
+            break
+          fi
+          
+          echo "Lambda function is not ready. Current status: $STATUS. Waiting 10 seconds..."
+          sleep 10
+          ATTEMPTS=$((ATTEMPTS+1))
+        done
+        
+        if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+          echo "Timed out waiting for Lambda function to be ready for updates."
+          exit 1
+        fi
+        
         # Update Lambda function code
+        echo "Updating Lambda function code..."
         aws lambda update-function-code \
           --function-name $FUNCTION_NAME \
           --zip-file fileb://deployment.zip
         
+        # Wait for code update to complete
+        echo "Waiting for code update to complete..."
+        ATTEMPTS=0
+        while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+          STATUS=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.LastUpdateStatus' --output text || echo "Failed")
+          
+          if [ "$STATUS" = "Successful" ] || [ "$STATUS" = "Failed" ]; then
+            echo "Code update completed with status: $STATUS"
+            break
+          fi
+          
+          echo "Code update in progress. Current status: $STATUS. Waiting 10 seconds..."
+          sleep 10
+          ATTEMPTS=$((ATTEMPTS+1))
+        done
+        
+        if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+          echo "Timed out waiting for code update to complete."
+          exit 1
+        fi
+        
         # Update Lambda function configuration
+        echo "Updating Lambda function configuration..."
         STAGE="${{ github.event.inputs.environment || 'dev' }}"
         aws lambda update-function-configuration \
           --function-name $FUNCTION_NAME \
           --timeout 30 \
           --memory-size 1024 \
+          --handler "src/lambda.handler" \
           --environment "Variables={NODE_ENV=$STAGE,DB_HOST=localhost,DB_NAME=resume_customizer,DB_USER=postgres,DB_PASSWORD=password,JWT_SECRET=temp-jwt-secret-$STAGE,JWT_EXPIRES_IN=7d,STORAGE_TYPE=s3,S3_BUCKET=resume-customizer-backend-$STAGE-resumes,S3_REGION=${{ secrets.AWS_REGION }},LOCAL_STORAGE_PATH=./uploads,AI_SERVICE_IMPLEMENTATION=n8n,N8N_WEBHOOK_URL=http://localhost:5678,N8N_WEBHOOK_PATH=/webhook/customize-resume-ai,N8N_TIMEOUT_MS=120000,N8N_MAX_RETRIES=3,LLM_API_KEY=test-key,LLM_API_BASE_URL=https://openrouter.ai/api,LLM_MODEL_NAME=deepseek/deepseek-r1-distill-llama-70b,LLM_TIMEOUT_MS=120000,REDIS_HOST=localhost,REDIS_PORT=6379,REDIS_PASSWORD=,PUBLIC_URL=https://api-$STAGE.resume-customizer.example.com,FALLBACK_TO_MOCK=true}"
     
     - name: Create or update API Gateway
