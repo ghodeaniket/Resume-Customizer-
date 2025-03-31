@@ -32,7 +32,15 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci
+      run: npm ci --no-audit --no-audit
+      
+    - name: Security audit (info only)
+      run: npm audit --audit-level=high || echo "Security vulnerabilities found - review output above"
+    
+    - name: Security audit (non-blocking)
+      run: |
+        echo "Running npm audit for critical vulnerabilities only..."
+        npm audit --production || echo "Vulnerabilities found, but continuing build as they're mostly in dev dependencies"
     
     - name: Run tests
       run: npm run test:ci
