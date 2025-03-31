@@ -74,12 +74,35 @@ jobs:
           stage: ${opt:stage, env:STAGE, 'dev'}
           environment:
             NODE_ENV: ${self:provider.stage}
-            # Add your environment variables here
+            # Database settings
             DB_HOST: ${ssm:/resume-customizer/${self:provider.stage}/db/host, 'localhost'}
             DB_NAME: ${ssm:/resume-customizer/${self:provider.stage}/db/name, 'resume_customizer'}
             DB_USER: ${ssm:/resume-customizer/${self:provider.stage}/db/user, 'postgres'}
             DB_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/db/password, 'password'}
+            # Create a DATABASE_URL environment variable from individual parts for compatibility
+            DATABASE_URL: postgres://${ssm:/resume-customizer/${self:provider.stage}/db/user, 'postgres'}:${ssm:/resume-customizer/${self:provider.stage}/db/password, 'password'}@${ssm:/resume-customizer/${self:provider.stage}/db/host, 'localhost'}:5432/${ssm:/resume-customizer/${self:provider.stage}/db/name, 'resume_customizer'}
+            # Auth settings
             JWT_SECRET: ${ssm:/resume-customizer/${self:provider.stage}/jwt/secret, 'dev-secret'}
+            JWT_EXPIRES_IN: ${ssm:/resume-customizer/${self:provider.stage}/jwt/expires-in, '7d'}
+            # AWS settings
+            AWS_BUCKET_NAME: ${self:service}-${self:provider.stage}-resumes
+            AWS_REGION: ${self:provider.region}
+            # The access key and secret are handled by the IAM role
+            # N8N webhook settings
+            N8N_WEBHOOK_URL: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-url, 'http://localhost:5678/webhook'}
+            N8N_WEBHOOK_PATH: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-path, 'customize-resume-ai'}
+            # Redis settings (for Bull queue)
+            REDIS_HOST: ${ssm:/resume-customizer/${self:provider.stage}/redis/host, 'localhost'}
+            REDIS_PORT: ${ssm:/resume-customizer/${self:provider.stage}/redis/port, '6379'}
+            REDIS_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/redis/password, ''}
+            # General settings
+            PORT: 3000
+            PUBLIC_URL: ${ssm:/resume-customizer/${self:provider.stage}/public-url, 'http://localhost:3000'}
+            # Customization settings
+            CUSTOMIZATION_TIMEOUT_MS: ${ssm:/resume-customizer/${self:provider.stage}/customization/timeout-ms, '120000'}
+            CUSTOMIZATION_MAX_RETRIES: ${ssm:/resume-customizer/${self:provider.stage}/customization/max-retries, '3'}
+            # Service settings - fall back to mock implementations if needed
+            FALLBACK_TO_MOCK: ${ssm:/resume-customizer/${self:provider.stage}/fallback-to-mock, 'true'}
           iam:
             role:
               statements:
@@ -154,7 +177,36 @@ jobs:
         const serverless = require('serverless-http');
         const app = require('./app');
 
-        module.exports.handler = serverless(app);
+        // Add detailed error handling for AWS Lambda
+        const handler = serverless(app);
+
+        module.exports.handler = async (event, context) => {
+          try {
+            // Add request logging for debugging
+            console.log('Request Event:', JSON.stringify({
+              path: event.path,
+              httpMethod: event.httpMethod,
+              headers: event.headers,
+              queryStringParameters: event.queryStringParameters,
+              // Don't log body to avoid sensitive data in logs
+              bodyPresent: !!event.body
+            }));
+            
+            return await handler(event, context);
+          } catch (error) {
+            console.error('FATAL ERROR:', error);
+            console.error('EVENT:', JSON.stringify(event));
+            return {
+              statusCode: 500,
+              body: JSON.stringify({
+                message: 'Internal server error',
+                errorType: error.name,
+                errorMessage: error.message,
+                stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+              })
+            };
+          }
+        };
         EOL
     
     - name: Deploy to AWS using Serverless

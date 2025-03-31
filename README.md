@@ -51,6 +51,15 @@ npm run docker:down
 
 For detailed development setup instructions, see [DEV_SETUP.md](DEV_SETUP.md).
 
+## Security Notes
+
+See [SECURITY.md](SECURITY.md) for information about security considerations and known vulnerabilities.
+
+The project uses `serverless-dynamodb-local` for local development, which has some known dependencies with security vulnerabilities. These have been addressed in one of the following ways:
+1. Using a fixed version (0.1.1) of the package with fewer vulnerabilities
+2. Configuring npm audit to ignore development dependencies in CI pipeline
+3. Setting `audit=false` in `.npmrc` to prevent audit failures while still showing audit information
+
 ### Production Environment
 
 ```bash

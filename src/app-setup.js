@@ -26,6 +26,55 @@ dotenv.config();
  * @param {Object} app - Express app instance
  */
 function setupApp(app) {
+  // Debug endpoint that doesn't require database or service initialization
+  // This endpoint should be accessible even if other parts of the application fail
+  app.get('/debug', (req, res) => {
+    // Determine if we're in serverless mode (AWS Lambda)
+    const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined;
+    
+    // Check for essential environment variables
+    const requiredEnvVars = [
+      'JWT_SECRET', 
+      'DATABASE_URL',
+      'AWS_BUCKET_NAME', 
+      'AWS_REGION',
+      'N8N_WEBHOOK_URL',
+      'REDIS_HOST'
+    ];
+    
+    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    
+    const debugInfo = {
+      environment: process.env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+      nodeVersion: process.version,
+      isServerless: isServerless,
+      missingRequiredEnvVars: missingEnvVars,
+      env: {
+        // List all non-sensitive environment variables (without sensitive values)
+        NODE_ENV: process.env.NODE_ENV,
+        DATABASE_URL: process.env.DATABASE_URL ? 'set (hidden)' : 'not set',
+        DB_HOST: process.env.DB_HOST ? 'set' : 'not set',
+        DB_NAME: process.env.DB_NAME ? 'set' : 'not set',
+        DB_USER: process.env.DB_USER ? 'set' : 'not set',
+        DB_PASSWORD: process.env.DB_PASSWORD ? 'set (hidden)' : 'not set',
+        JWT_SECRET: process.env.JWT_SECRET ? 'set (hidden)' : 'not set',
+        AWS_REGION: process.env.AWS_REGION ? 'set' : 'not set',
+        AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME ? 'set' : 'not set',
+        N8N_WEBHOOK_URL: process.env.N8N_WEBHOOK_URL ? 'set' : 'not set',
+        N8N_WEBHOOK_PATH: process.env.N8N_WEBHOOK_PATH ? 'set' : 'not set',
+        REDIS_HOST: process.env.REDIS_HOST ? 'set' : 'not set',
+        REDIS_PORT: process.env.REDIS_PORT ? 'set' : 'not set',
+        FALLBACK_TO_MOCK: process.env.FALLBACK_TO_MOCK,
+        MOCK_SERVICES: process.env.MOCK_SERVICES,
+        PORT: process.env.PORT,
+        PUBLIC_URL: process.env.PUBLIC_URL
+      }
+    };
+    
+    res.status(200).json(debugInfo);
+  });
+
   // Security middleware
   if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
     // Relaxed security settings for development and testing

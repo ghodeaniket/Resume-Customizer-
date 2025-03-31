@@ -18,15 +18,34 @@ const errorHandler = (err, req, res, next) => {
   // Log the error with appropriate level based on status code
   const logMethod = error.statusCode >= 500 ? 'error' : 'warn';
   
-  logger[logMethod](`Error: ${error.message}`, {
+  // Enhanced logging for serverless environment
+  const logData = {
     statusCode: error.statusCode,
     code: error.code,
     path: req.path,
     method: req.method,
     errorName: error.name,
+    errorMessage: error.message,
     isOperational: error.isOperational,
+    environment: process.env.NODE_ENV,
+    // Include additional debugging information for serverless environment
+    isServerless: !!process.env.AWS_LAMBDA_FUNCTION_NAME,
+    functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+    functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
+    awsRegion: process.env.AWS_REGION,
+    memoryLimit: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE,
+    remainingTime: context => context?.getRemainingTimeInMillis ? context.getRemainingTimeInMillis() : 'N/A',
     ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
-  });
+  };
+  
+  // Log full error details
+  logger[logMethod](`Error: ${error.message}`, logData);
+  
+  // If this is a production environment in Lambda, also console.log for CloudWatch logging
+  if (process.env.NODE_ENV === 'production' && process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    console.error('ERROR DETAILS:', JSON.stringify(logData));
+    console.error('STACK:', error.stack);
+  }
 
   // Handle specific error types from external libraries
   if (err.name === 'SequelizeValidationError') {
