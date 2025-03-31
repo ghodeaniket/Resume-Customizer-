@@ -1,23 +1,26 @@
 name: Resume Customizer CD
 
 on:
-  # Trigger the workflow on manual dispatch (button in GitHub UI)
+  # Trigger the workflow on push to main or manual dispatch
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
         description: 'Environment to deploy to'
         required: true
-        default: 'staging'
+        default: 'dev'
         type: choice
         options:
+          - dev
           - staging
           - production
 
 jobs:
   deploy:
-    name: Deploy to ${{ github.event.inputs.environment }}
+    name: Deploy to ${{ github.event.inputs.environment || 'dev' }}
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
+    environment: ${{ github.event.inputs.environment || 'dev' }}
     
     steps:
     - uses: actions/checkout@v4
@@ -31,35 +34,128 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
-    - name: Install deployment tools
-      run: npm install -g pm2
+    - name: Run tests
+      run: npm run test:ci
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
     
-    # Example - SSH deploy (would need to set up secrets)
-    - name: Deploy via SSH
-      if: ${{ github.event.inputs.environment == 'staging' }}
-      run: |
-        echo "Deploying to ${{ github.event.inputs.environment }} server..."
-        echo "This is a placeholder. Real deployment would use secrets for SSH."
-        # mkdir -p ~/.ssh
-        # echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-        # chmod 600 ~/.ssh/id_rsa
-        # ssh -o StrictHostKeyChecking=no user@${{ secrets.SSH_HOST }} "cd /path/to/app && git pull && npm ci && pm2 restart app"
+    - name: Install serverless framework
+      run: npm install -g serverless
     
-    # Example - AWS Elastic Beanstalk deployment
-    - name: Deploy to AWS
-      if: ${{ github.event.inputs.environment == 'production' }}
+    - name: Create serverless configuration
       run: |
-        echo "Deploying to AWS ${{ github.event.inputs.environment }}..."
-        echo "This is a placeholder. Real deployment would use AWS CLI or EB CLI."
-        # aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-        # aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        # aws configure set region ${{ secrets.AWS_REGION }}
-        # zip -r deploy.zip . -x "node_modules/*" ".git/*"
-        # aws s3 cp deploy.zip s3://${{ secrets.EB_BUCKET }}/${{ github.sha }}.zip
-        # aws elasticbeanstalk create-application-version --application-name resume-customizer --version-label ${{ github.sha }} --source-bundle S3Bucket=${{ secrets.EB_BUCKET }},S3Key=${{ github.sha }}.zip
-        # aws elasticbeanstalk update-environment --environment-name resume-customizer-${{ github.event.inputs.environment }} --version-label ${{ github.sha }}
+        cat > serverless.yml << 'EOL'
+        service: resume-customizer-backend
+
+        provider:
+          name: aws
+          runtime: nodejs18.x
+          region: ${opt:region, '${env:AWS_REGION}'}
+          stage: ${opt:stage, '${env:STAGE, 'dev'}'}
+          environment:
+            NODE_ENV: ${self:provider.stage}
+            # Add your environment variables here
+            DB_HOST: ${ssm:/resume-customizer/${self:provider.stage}/db/host~true, ''}
+            DB_NAME: ${ssm:/resume-customizer/${self:provider.stage}/db/name~true, ''}
+            DB_USER: ${ssm:/resume-customizer/${self:provider.stage}/db/user~true, ''}
+            DB_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/db/password~true, ''}
+            JWT_SECRET: ${ssm:/resume-customizer/${self:provider.stage}/jwt/secret~true, ''}
+          iam:
+            role:
+              statements:
+                - Effect: Allow
+                  Action:
+                    - dynamodb:Query
+                    - dynamodb:Scan
+                    - dynamodb:GetItem
+                    - dynamodb:PutItem
+                    - dynamodb:UpdateItem
+                    - dynamodb:DeleteItem
+                  Resource: 
+                    - !GetAtt ResumeTable.Arn
+                - Effect: Allow
+                  Action:
+                    - s3:GetObject
+                    - s3:PutObject
+                    - s3:DeleteObject
+                  Resource: 
+                    - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes/*
+                    - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes
+
+        functions:
+          api:
+            handler: src/serverless.handler
+            events:
+              - httpApi:
+                  path: /{proxy+}
+                  method: ANY
+            timeout: 30
+            memorySize: 1024
+
+        resources:
+          Resources:
+            ResumeTable:
+              Type: AWS::DynamoDB::Table
+              Properties:
+                TableName: ${self:service}-${self:provider.stage}-resumes
+                BillingMode: PAY_PER_REQUEST
+                AttributeDefinitions:
+                  - AttributeName: id
+                    AttributeType: S
+                KeySchema:
+                  - AttributeName: id
+                    KeyType: HASH
+                StreamSpecification:
+                  StreamViewType: NEW_AND_OLD_IMAGES
+            
+            ResumesBucket:
+              Type: AWS::S3::Bucket
+              Properties:
+                BucketName: ${self:service}-${self:provider.stage}-resumes
+                CorsConfiguration:
+                  CorsRules:
+                    - AllowedHeaders:
+                        - '*'
+                      AllowedMethods:
+                        - GET
+                        - PUT
+                        - POST
+                        - DELETE
+                        - HEAD
+                      AllowedOrigins:
+                        - '*'
+                      MaxAge: 3000
+        EOL
+    
+    - name: Create serverless entry point
+      run: |
+        mkdir -p src
+        cat > src/serverless.js << 'EOL'
+        const serverless = require('serverless-http');
+        const app = require('./app');
+
+        module.exports.handler = serverless(app);
+        EOL
+    
+    - name: Deploy to AWS using Serverless
+      run: |
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        echo "Deploying to AWS $STAGE environment..."
+        serverless deploy --stage $STAGE --verbose
+      
+    - name: Store deployment info in SSM
+      run: |
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        API_URL=$(serverless info --stage $STAGE --verbose | grep -o 'HttpApiUrl:.*' | cut -d' ' -f2)
+        aws ssm put-parameter --name "/resume-customizer/$STAGE/api/url" --value "$API_URL" --type String --overwrite
     
     - name: Send deployment notification
       run: |
-        echo "Deployment to ${{ github.event.inputs.environment }} completed!"
-        # You could add Slack/Email notifications here
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        echo "Deployment to $STAGE completed!"
+        echo "API URL: $(aws ssm get-parameter --name "/resume-customizer/$STAGE/api/url" --query 'Parameter.Value' --output text)"

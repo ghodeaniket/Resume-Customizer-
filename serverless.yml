@@ -1,0 +1,84 @@
+service: resume-customizer-backend
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, self:custom.defaultRegion}
+  stage: ${opt:stage, self:custom.defaultStage}
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    # Add your environment variables here - these will be filled by SSM parameters
+    DB_HOST: ${ssm:/resume-customizer/${self:provider.stage}/db/host~true, ''}
+    DB_NAME: ${ssm:/resume-customizer/${self:provider.stage}/db/name~true, ''}
+    DB_USER: ${ssm:/resume-customizer/${self:provider.stage}/db/user~true, ''}
+    DB_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/db/password~true, ''}
+    JWT_SECRET: ${ssm:/resume-customizer/${self:provider.stage}/jwt/secret~true, ''}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: 
+            - !GetAtt ResumeTable.Arn
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+          Resource: 
+            - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes/*
+            - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes
+
+custom:
+  defaultStage: dev
+  defaultRegion: us-east-1
+
+functions:
+  api:
+    handler: src/serverless.handler
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+    timeout: 30
+    memorySize: 1024
+
+resources:
+  Resources:
+    ResumeTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}-resumes
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+    
+    ResumesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-${self:provider.stage}-resumes
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              AllowedOrigins:
+                - '*'
+              MaxAge: 3000

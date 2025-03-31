@@ -28,6 +28,7 @@ build
 # Temp files
 tmp/
 temp/-e 
+
 # Test files
 sample-resume.pdf
 test-resume.txt
@@ -38,3 +39,9 @@ customized-resume.txt
 job-description.txt
 test.js
 test-customize.js
+
+# Serverless
+.serverless/
+.dynamodb/
+.webpack/
+serverless.env.yml

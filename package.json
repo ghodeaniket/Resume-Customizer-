@@ -19,7 +19,12 @@
     "db:seed": "sequelize db:seed:all",
     "db:reset": "sequelize db:drop && sequelize db:create && sequelize db:migrate && sequelize db:seed:all",
     "docker:up": "docker-compose -f docker-compose.dev.yml up -d",
-    "docker:down": "docker-compose -f docker-compose.dev.yml down"
+    "docker:down": "docker-compose -f docker-compose.dev.yml down",
+    "deploy": "serverless deploy",
+    "deploy:dev": "serverless deploy --stage dev",
+    "deploy:staging": "serverless deploy --stage staging",
+    "deploy:prod": "serverless deploy --stage production",
+    "remove": "serverless remove"
   },
   "dependencies": {
     "awilix": "^12.0.5",
@@ -47,6 +52,7 @@
     "puppeteer": "^24.4.0",
     "redis": "^4.7.0",
     "sequelize": "^6.6.5",
+    "serverless-http": "^3.2.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.0",
@@ -57,6 +63,10 @@
     "eslint": "^8.57.1",
     "jest": "^29.7.0",
     "nodemon": "^3.1.9",
+    "serverless": "^3.38.0",
+    "serverless-dynamodb-local": "^0.2.40",
+    "serverless-offline": "^13.3.3",
+    "serverless-plugin-warmup": "^8.2.1",
     "sequelize-cli": "^6.2.0",
     "supertest": "^6.3.4"
   }
