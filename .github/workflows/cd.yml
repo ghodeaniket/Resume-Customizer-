@@ -313,7 +313,7 @@ jobs:
           aws apigatewayv2 create-stage \
             --api-id $API_ID \
             --stage-name $STAGE \
-            --auto-deploy true
+            --auto-deploy
           
           echo "Creating Lambda integration"
           # Create Lambda integration
@@ -346,7 +346,7 @@ jobs:
             aws apigatewayv2 create-stage \
               --api-id $API_ID \
               --stage-name $STAGE \
-              --auto-deploy true
+              --auto-deploy
           else
             echo "Stage $STAGE already exists"
           fi
