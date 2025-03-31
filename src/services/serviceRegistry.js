@@ -6,7 +6,8 @@
  */
 
 const logger = require('../utils/logger');
-const config = require('../config/configManager');
+const config = require('../config');
+const { AIServiceFactory, AIServiceImplementation } = require('./factories/aiServiceFactory');
 
 // Repositories
 const resumeRepository = require('../repositories/resumeRepository');
@@ -16,7 +17,6 @@ const userRepository = require('../repositories/userRepository');
 const ResumeService = require('./implementations/resumeServiceImpl');
 const AuthService = require('./implementations/authServiceImpl');
 const StorageService = require('./implementations/storageServiceImpl');
-const AIService = require('./implementations/aiServiceImpl');
 const QueueService = require('./implementations/queueServiceImpl');
 
 // Cached service instances
@@ -66,10 +66,10 @@ function getService(serviceType) {
   case ServiceType.STORAGE: {
     // Create StorageService with configuration
     serviceInstance = new StorageService({
-      accessKeyId: config.aws.accessKeyId,
-      secretAccessKey: config.aws.secretAccessKey,
-      region: config.aws.region,
-      bucketName: config.aws.bucket,
+      accessKeyId: config.storage.s3.accessKeyId,
+      secretAccessKey: config.storage.s3.secretAccessKey,
+      region: config.storage.s3.region,
+      bucketName: config.storage.s3.bucket,
       endpoint: process.env.AWS_ENDPOINT || null,
       forcePathStyle: process.env.AWS_FORCE_PATH_STYLE === 'true'
     });
@@ -77,13 +77,50 @@ function getService(serviceType) {
   }
     
   case ServiceType.AI: {
-    // Create AIService with configuration
-    serviceInstance = new AIService({
-      webhookUrl: config.n8n.webhookUrl,
-      webhookPath: config.n8n.webhookPath,
-      timeoutMs: config.customization.timeoutMs,
-      maxRetries: config.customization.maxRetries
-    });
+    // Get AI service implementation type from config
+    const implementationType = config.features.aiServiceImplementation;
+    
+    // Create AI service based on implementation type
+    if (implementationType === AIServiceImplementation.N8N) {
+      // N8N configuration
+      const n8nConfig = {
+        webhookUrl: config.n8n.webhookUrl,
+        webhookPath: config.n8n.webhookPath,
+        timeoutMs: config.n8n.timeoutMs,
+        maxRetries: config.n8n.maxRetries
+      };
+      
+      serviceInstance = AIServiceFactory.createAIService(
+        AIServiceImplementation.N8N, 
+        n8nConfig
+      );
+    } else if (implementationType === AIServiceImplementation.DIRECT_LLM) {
+      // Direct LLM configuration
+      const llmConfig = {
+        apiKey: config.llm.apiKey,
+        baseUrl: config.llm.baseUrl,
+        modelName: config.llm.modelName,
+        timeoutMs: config.llm.timeoutMs
+      };
+      
+      serviceInstance = AIServiceFactory.createAIService(
+        AIServiceImplementation.DIRECT_LLM, 
+        llmConfig
+      );
+    } else {
+      // Default to N8N if unknown implementation type
+      logger.warn(`Unknown AI service implementation type: ${implementationType}, falling back to N8N`);
+      
+      serviceInstance = AIServiceFactory.createAIService(
+        AIServiceImplementation.N8N, 
+        {
+          webhookUrl: config.n8n.webhookUrl,
+          webhookPath: config.n8n.webhookPath,
+          timeoutMs: config.n8n.timeoutMs,
+          maxRetries: config.n8n.maxRetries
+        }
+      );
+    }
     break;
   }
     
@@ -97,7 +134,7 @@ function getService(serviceType) {
         password: config.redis.password
       },
       defaultJobOptions: {
-        attempts: config.customization.maxRetries,
+        attempts: config.n8n.maxRetries, // Reuse this config value
         backoff: {
           type: 'exponential',
           delay: 2000

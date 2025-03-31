@@ -11,7 +11,7 @@ This is the backend API for the Resume Customizer application, which helps users
 - Resume storage and management (upload, update, delete)
 - PDF to Markdown conversion
 - Resume customization based on job descriptions
-- Integration with n8n for automation workflows
+- Multiple AI service implementations (n8n workflow or direct LLM API)
 - API documentation with Swagger/OpenAPI
 - Monitoring with Prometheus and Grafana
 - Comprehensive testing setup
@@ -23,10 +23,29 @@ This is the backend API for the Resume Customizer application, which helps users
 - JWT for authentication
 - AWS S3 for file storage
 - n8n for automation workflows
+- Direct LLM integration (OpenRouter, OpenAI, Anthropic)
 - Swagger for API documentation
 - Prometheus and Grafana for monitoring
 - Docker and Docker Compose for containerization
 - Nginx for production deployment
+
+## AI Service Implementations
+
+The application supports two different implementations for the AI resume customization service:
+
+1. **n8n Workflow Implementation** - Uses an external n8n workflow with 3 steps:
+   - Profiler: Analyzes the resume to create a comprehensive professional profile
+   - Researcher: Analyzes the job description to extract requirements
+   - Resume Strategist: Creates a tailored resume based on the profile and job requirements
+
+2. **Direct LLM Implementation** - Directly calls LLM APIs to perform the same 3-step process:
+   - Supports multiple LLM providers (OpenRouter, OpenAI, Anthropic)
+   - No external n8n dependency required
+   - Same high-quality results with better control
+
+You can switch between implementations using the `AI_SERVICE_IMPLEMENTATION` environment variable:
+- `AI_SERVICE_IMPLEMENTATION=n8n` - Use the n8n workflow (default)
+- `AI_SERVICE_IMPLEMENTATION=direct_llm` - Use direct LLM API calls
 
 ## Dockerized Setup
 
@@ -98,8 +117,20 @@ AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 AWS_REGION=us-east-1
 AWS_S3_BUCKET=your-resume-bucket
 
-# n8n
-N8N_API_KEY=your_n8n_api_key
+# AI Service Implementation
+AI_SERVICE_IMPLEMENTATION=n8n  # or direct_llm
+
+# n8n (when using n8n implementation)
+N8N_WEBHOOK_URL=http://n8n:5678
+N8N_WEBHOOK_PATH=/webhook/customize-resume-ai
+N8N_TIMEOUT_MS=120000
+N8N_MAX_RETRIES=3
+
+# LLM API (when using direct_llm implementation)
+LLM_API_KEY=your_llm_api_key
+LLM_API_BASE_URL=https://openrouter.ai/api
+LLM_MODEL_NAME=deepseek/deepseek-r1-distill-llama-70b
+LLM_TIMEOUT_MS=120000
 ```
 
 ## Manual Setup (Without Docker)
@@ -109,6 +140,7 @@ N8N_API_KEY=your_n8n_api_key
 - Node.js 18+
 - PostgreSQL 13+
 - AWS account (for S3 storage)
+- n8n instance or LLM API access (depending on implementation)
 
 ### Installation
 
@@ -212,6 +244,10 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions, includi
 │   ├── routes/          # API routes
 │   ├── seeders/         # Database seed data
 │   ├── services/        # Business logic
+│   │   ├── factories/   # Service factories
+│   │   ├── interfaces/  # Service interfaces
+│   │   ├── implementations/ # Service implementations
+│   │   └── serviceRegistry.js # Service registry
 │   ├── tests/           # Unit and integration tests
 │   ├── utils/           # Utility functions
 │   └── app.js           # Express application setup
