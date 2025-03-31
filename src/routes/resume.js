@@ -27,8 +27,8 @@ const upload = multer({
 
 const router = express.Router();
 
-// Most routes require authentication, but we'll add middleware per route
-// to allow some public endpoints
+// All routes require authentication
+router.use(authMiddleware.protect);
 
 /**
  * @swagger
@@ -94,7 +94,6 @@ const router = express.Router();
  */
 router.post(
   '/customize', 
-  authMiddleware.protect,
   upload.single('file'), 
   validationMiddleware.validateCustomizeRequest,
   resumeController.uploadAndCustomize
@@ -198,7 +197,6 @@ router.get(
  */
 router.get(
   '/:id/download', 
-  authMiddleware.protect,
   validationMiddleware.validateDownloadRequest,
   resumeController.downloadResume
 );

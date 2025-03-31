@@ -127,7 +127,7 @@ async function findByStatus(status, limit = 10) {
 }
 
 /**
- * Update resume status without ownership check
+ * Update resume status (for background processing, no ownership check)
  * @param {string} resumeId - Resume ID
  * @param {string} status - New status
  * @param {Object} additionalData - Additional data to update
@@ -135,9 +135,8 @@ async function findByStatus(status, limit = 10) {
  */
 async function updateStatus(resumeId, status, additionalData = {}) {
   try {
-    const resume = await Resume.findOne({
-      where: { id: resumeId }
-    });
+    // For status updates via background jobs, we use findByPk to avoid userId requirement
+    const resume = await Resume.findByPk(resumeId);
     
     if (!resume) return null;
     
@@ -156,17 +155,15 @@ async function updateStatus(resumeId, status, additionalData = {}) {
 }
 
 /**
- * Find a resume by ID only (used for status checks)
+ * Find a resume by ID only for background processing (no userId check)
  * @param {string} resumeId - Resume ID
  * @returns {Promise<Object|null>} Resume object or null if not found
  */
-async function findByIdOnly(resumeId) {
+async function findByIdForProcessing(resumeId) {
   try {
-    return await Resume.findOne({
-      where: { id: resumeId }
-    });
+    return await Resume.findByPk(resumeId);
   } catch (error) {
-    logger.error(`Repository error - findByIdOnly: ${error.message}`, error);
+    logger.error(`Repository error - findByIdForProcessing: ${error.message}`, error);
     throw error;
   }
 }
@@ -174,7 +171,7 @@ async function findByIdOnly(resumeId) {
 module.exports = {
   findByUser,
   findById,
-  findByIdOnly,
+  findByIdForProcessing,
   create,
   update,
   remove,
