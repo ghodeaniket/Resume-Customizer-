@@ -30,15 +30,15 @@ class AIServiceFactory {
     logger.info(`Creating AI service with implementation: ${implementationType}`);
     
     switch (implementationType) {
-      case AIServiceImplementation.N8N:
-        return new N8NAIService(config);
-      
-      case AIServiceImplementation.DIRECT_LLM:
-        return new DirectLLMAIService(config);
-      
-      default:
-        logger.warn(`Unknown implementation type: ${implementationType}, falling back to N8N`);
-        return new N8NAIService(config);
+    case AIServiceImplementation.N8N:
+      return new N8NAIService(config);
+    
+    case AIServiceImplementation.DIRECT_LLM:
+      return new DirectLLMAIService(config);
+    
+    default:
+      logger.warn(`Unknown implementation type: ${implementationType}, falling back to N8N`);
+      return new N8NAIService(config);
     }
   }
 }

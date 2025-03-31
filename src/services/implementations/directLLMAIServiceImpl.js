@@ -229,21 +229,22 @@ class DirectLLMAIService extends IAIService {
     COMMUNICATION STYLE
     Clear, precise, and impactful. Use strong action verbs, quantify achievements, and emphasize leadership qualities. Maintain a professional tone that conveys competence and authority.`;
     
-    const userPrompt = `comprehensive profile - ${profile}, recommendations ${jobAnalysis} - and original resume - ${originalResume}`;
+    // Build the user prompt with job title and company name if provided
+    let fullUserPrompt = `comprehensive profile - ${profile}, recommendations ${jobAnalysis} - and original resume - ${originalResume}`;
+    
+    if (jobTitle) {
+      fullUserPrompt = `${fullUserPrompt} for the role of ${jobTitle}`;
+    }
+    
+    if (companyName) {
+      fullUserPrompt = `${fullUserPrompt} at ${companyName}`;
+    }
     
     try {
-      if (jobTitle) {
-        userPrompt += ` for the role of ${jobTitle}`;
-      }
-      
-      if (companyName) {
-        userPrompt += ` at ${companyName}`;
-      }
-      
       return await this.llmClient.complete({
         messages: [
           { role: 'system', content: prompt },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: fullUserPrompt }
         ],
         temperature: 0.5,  // Lower temperature for more deterministic output
         maxTokens: 4000    // Higher token limit for full resume
