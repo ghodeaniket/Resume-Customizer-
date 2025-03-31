@@ -116,7 +116,7 @@ const configSchema = {
       required: process.env.NODE_ENV === 'production'
     },
     bucket: {
-      value: process.env.AWS_S3_BUCKET,
+      value: process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET,
       required: process.env.NODE_ENV === 'production'
     }
   },
