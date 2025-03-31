@@ -8,11 +8,11 @@ provider:
   environment:
     NODE_ENV: ${self:provider.stage}
     # Add your environment variables here - these will be filled by SSM parameters
-    DB_HOST: ${ssm:/resume-customizer/${self:provider.stage}/db/host~true, ''}
-    DB_NAME: ${ssm:/resume-customizer/${self:provider.stage}/db/name~true, ''}
-    DB_USER: ${ssm:/resume-customizer/${self:provider.stage}/db/user~true, ''}
-    DB_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/db/password~true, ''}
-    JWT_SECRET: ${ssm:/resume-customizer/${self:provider.stage}/jwt/secret~true, ''}
+    DB_HOST: ${ssm:/resume-customizer/${self:provider.stage}/db/host, 'localhost'}
+    DB_NAME: ${ssm:/resume-customizer/${self:provider.stage}/db/name, 'resume_customizer'}
+    DB_USER: ${ssm:/resume-customizer/${self:provider.stage}/db/user, 'postgres'}
+    DB_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/db/password, 'password'}
+    JWT_SECRET: ${ssm:/resume-customizer/${self:provider.stage}/jwt/secret, 'dev-secret'}
   iam:
     role:
       statements:
