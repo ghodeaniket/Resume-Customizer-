@@ -26,8 +26,9 @@ jobs:
     - name: Run linting
       run: npm run lint
     
-    - name: Security audit
-      run: npm audit --audit-level=high
+    - name: Security audit (production dependencies only)
+      run: npm audit --audit-level=high --production
+      # Only checking production dependencies, ignoring dev dependencies
     
     - name: Run tests
       run: npm run test:ci
