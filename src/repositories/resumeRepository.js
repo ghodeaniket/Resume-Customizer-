@@ -127,7 +127,7 @@ async function findByStatus(status, limit = 10) {
 }
 
 /**
- * Update resume status
+ * Update resume status without ownership check
  * @param {string} resumeId - Resume ID
  * @param {string} status - New status
  * @param {Object} additionalData - Additional data to update
@@ -135,7 +135,9 @@ async function findByStatus(status, limit = 10) {
  */
 async function updateStatus(resumeId, status, additionalData = {}) {
   try {
-    const resume = await Resume.findByPk(resumeId);
+    const resume = await Resume.findOne({
+      where: { id: resumeId }
+    });
     
     if (!resume) return null;
     
@@ -153,9 +155,26 @@ async function updateStatus(resumeId, status, additionalData = {}) {
   }
 }
 
+/**
+ * Find a resume by ID only (used for status checks)
+ * @param {string} resumeId - Resume ID
+ * @returns {Promise<Object|null>} Resume object or null if not found
+ */
+async function findByIdOnly(resumeId) {
+  try {
+    return await Resume.findOne({
+      where: { id: resumeId }
+    });
+  } catch (error) {
+    logger.error(`Repository error - findByIdOnly: ${error.message}`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   findByUser,
   findById,
+  findByIdOnly,
   create,
   update,
   remove,

@@ -252,9 +252,10 @@ exports.uploadAndCustomize = withErrorHandling(async (req, res) => {
  */
 exports.getCustomizationStatus = withErrorHandling(async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
   
-  const status = await resumeService.getCustomizationStatus(id, userId);
+  // For status checks, we don't require user authentication
+  // passing null to skip the ownership check
+  const status = await resumeService.getCustomizationStatus(id, null);
   
   return successResponse(res, 200, 'Customization status retrieved successfully', status);
 }, 'Get customization status');

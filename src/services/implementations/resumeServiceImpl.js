@@ -447,13 +447,21 @@ class ResumeService {
   /**
    * Get customization status
    * @param {string} resumeId - Resume ID
-   * @param {string} userId - User ID
+   * @param {string} userId - User ID (optional, for permission checking)
    * @returns {Promise<Object>} Status object
    */
-  async getCustomizationStatus(resumeId, userId) {
+  async getCustomizationStatus(resumeId, userId = null) {
     try {
-      // Find resume in database
-      const resume = await this.resumeRepository.findById(resumeId, userId);
+      // Find resume in database - for status checks, we allow access without userId
+      let resume;
+      
+      if (userId) {
+        // If userId provided, check ownership
+        resume = await this.resumeRepository.findById(resumeId, userId);
+      } else {
+        // Otherwise just look up by ID for status checks
+        resume = await this.resumeRepository.findByIdOnly(resumeId);
+      }
       
       if (!resume) {
         throw new NotFoundError('Resume not found', 'resume');
@@ -569,8 +577,8 @@ class ResumeService {
     logger.info(`Processing resume customization job ${job.id} for resume ${resumeId}`);
     
     try {
-      // Find resume
-      const resume = await this.resumeRepository.findById(resumeId);
+      // Find resume - use findByIdOnly since this is a background job
+      const resume = await this.resumeRepository.findByIdOnly(resumeId);
       
       if (!resume) {
         throw new NotFoundError(`Resume not found: ${resumeId}`, 'resume');
