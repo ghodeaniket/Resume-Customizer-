@@ -21,7 +21,7 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci
+      run: npm ci --no-warnings
     
     - name: Run linting
       run: npm run lint
@@ -70,7 +70,7 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci
+      run: npm ci --no-warnings
     
     - name: Build application
       run: npm run build || echo "No build step defined, skipping"
