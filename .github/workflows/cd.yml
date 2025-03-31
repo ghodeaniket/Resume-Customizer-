@@ -33,13 +33,7 @@ jobs:
     
     - name: Install dependencies
       run: npm ci --no-audit --omit=dev
-      
-    - name: Run linting
-      run: |
-        # Install dev dependencies needed for linting
-        npm install --no-save eslint@8.57.0
-        npm run lint || echo "Linting issues found but continuing deployment"
-      
+    
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -47,13 +41,9 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
     
-    - name: Install specific serverless version
-      run: npm install -g serverless@3.24.0
-    
-    - name: Clean node_modules to reduce package size
+    - name: Clean node_modules for zip
       run: |
-        echo "Cleaning up large files before packaging..."
-        # Remove unnecessary files from node_modules
+        echo "Cleaning up large files before zipping..."
         find node_modules -type d -name ".git" -exec rm -rf {} +  2>/dev/null || true
         find node_modules -type d -name "test" -exec rm -rf {} +  2>/dev/null || true
         find node_modules -type d -name "tests" -exec rm -rf {} +  2>/dev/null || true
@@ -61,159 +51,27 @@ jobs:
         find node_modules -type f -name "*.ts" -delete  2>/dev/null || true
         find node_modules -type f -name "*.map" -delete  2>/dev/null || true
         
-        # Remove puppeteer's chromium download (very large)
-        rm -rf node_modules/puppeteer/.local-chromium  2>/dev/null || true
-        rm -rf node_modules/puppeteer-core/.local-chromium  2>/dev/null || true
+        # Remove specific large packages
+        rm -rf node_modules/@serverless || true
+        rm -rf node_modules/serverless || true
+        rm -rf node_modules/puppeteer || true
+        rm -rf node_modules/puppeteer-core || true
+        rm -rf node_modules/chrome-aws-lambda || true
+        rm -rf node_modules/aws-sdk || true
+        
+        # Remove any other large files/directories
+        find node_modules -type d -name "docs" -exec rm -rf {} +  2>/dev/null || true
+        find node_modules -type d -name "examples" -exec rm -rf {} +  2>/dev/null || true
     
-    - name: Create simplified serverless configuration
-      run: |
-        cat > serverless.yml << 'EOL'
-        service: resume-customizer-backend
-
-        provider:
-          name: aws
-          runtime: nodejs18.x
-          region: ${opt:region, env:AWS_REGION, 'us-east-1'}
-          stage: ${opt:stage, env:STAGE, 'dev'}
-          environment:
-            NODE_ENV: ${self:provider.stage}
-            # Database settings
-            DB_HOST: ${env:DB_HOST, 'localhost'}
-            DB_NAME: ${env:DB_NAME, 'resume_customizer'}
-            DB_USER: ${env:DB_USER, 'postgres'}
-            DB_PASSWORD: ${env:DB_PASSWORD, 'password'}
-            DATABASE_URL: postgres://${env:DB_USER, 'postgres'}:${env:DB_PASSWORD, 'password'}@${env:DB_HOST, 'localhost'}:5432/${env:DB_NAME, 'resume_customizer'}
-            # Auth settings
-            JWT_SECRET: ${env:JWT_SECRET, 'dev-secret'}
-            JWT_EXPIRES_IN: ${env:JWT_EXPIRES_IN, '7d'}
-            # Storage settings
-            STORAGE_TYPE: ${env:STORAGE_TYPE, 's3'}
-            S3_BUCKET: ${self:service}-${self:provider.stage}-resumes
-            S3_REGION: ${self:provider.region}
-            LOCAL_STORAGE_PATH: ${env:LOCAL_STORAGE_PATH, './uploads'}
-            # AI service implementation
-            AI_SERVICE_IMPLEMENTATION: ${env:AI_SERVICE_IMPLEMENTATION, 'n8n'}
-            # N8N webhook settings
-            N8N_WEBHOOK_URL: ${env:N8N_WEBHOOK_URL, 'http://localhost:5678'}
-            N8N_WEBHOOK_PATH: ${env:N8N_WEBHOOK_PATH, '/webhook/customize-resume-ai'}
-            N8N_TIMEOUT_MS: ${env:N8N_TIMEOUT_MS, '120000'}
-            N8N_MAX_RETRIES: ${env:N8N_MAX_RETRIES, '3'}
-            # LLM API settings
-            LLM_API_KEY: ${env:LLM_API_KEY, ''}
-            LLM_API_BASE_URL: ${env:LLM_API_BASE_URL, 'https://openrouter.ai/api'}
-            LLM_MODEL_NAME: ${env:LLM_MODEL_NAME, 'deepseek/deepseek-r1-distill-llama-70b'}
-            LLM_TIMEOUT_MS: ${env:LLM_TIMEOUT_MS, '120000'}
-            # Redis settings
-            REDIS_HOST: ${env:REDIS_HOST, 'localhost'}
-            REDIS_PORT: ${env:REDIS_PORT, '6379'}
-            REDIS_PASSWORD: ${env:REDIS_PASSWORD, ''}
-            # General settings
-            PORT: 3000
-            PUBLIC_URL: ${env:PUBLIC_URL, 'http://localhost:3000'}
-            # Fallback settings
-            FALLBACK_TO_MOCK: 'true'
-          iam:
-            role:
-              statements:
-                - Effect: Allow
-                  Action:
-                    - dynamodb:Query
-                    - dynamodb:Scan
-                    - dynamodb:GetItem
-                    - dynamodb:PutItem
-                    - dynamodb:UpdateItem
-                    - dynamodb:DeleteItem
-                  Resource: 
-                    - !GetAtt ResumeTable.Arn
-                - Effect: Allow
-                  Action:
-                    - s3:GetObject
-                    - s3:PutObject
-                    - s3:DeleteObject
-                  Resource: 
-                    - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes/*
-                    - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes
-
-        # Disable Serverless Dashboard integration
-        dashboard:
-          disableMonitoring: true
-
-        # Package configuration to reduce size
-        package:
-          patterns:
-            - "!node_modules/puppeteer/**"
-            - "!node_modules/puppeteer-core/**"
-            - "!node_modules/chrome-aws-lambda/**"
-            - "!node_modules/@serverless/dashboard-plugin/**"
-            - "!node_modules/aws-sdk/**"
-            - "!node_modules/@aws-sdk/**"
-            - "!node_modules/**/test/**"
-            - "!node_modules/**/tests/**"
-            - "!node_modules/**/examples/**"
-            - "!**/*.md"
-            - "!**/*.ts"
-            - "!**/*.map" 
-            - "!.git/**"
-            - "!.github/**"
-            - "!tests/**"
-            - "!coverage/**"
-            - "!docs/**"
-
-        functions:
-          api:
-            handler: src/serverless.handler
-            events:
-              - httpApi:
-                  path: /{proxy+}
-                  method: ANY
-            timeout: 29  # Just under the 30s HTTP API Gateway timeout
-            memorySize: 1024
-
-        resources:
-          Resources:
-            ResumeTable:
-              Type: AWS::DynamoDB::Table
-              Properties:
-                TableName: ${self:service}-${self:provider.stage}-resumes
-                BillingMode: PAY_PER_REQUEST
-                AttributeDefinitions:
-                  - AttributeName: id
-                    AttributeType: S
-                KeySchema:
-                  - AttributeName: id
-                    KeyType: HASH
-                StreamSpecification:
-                  StreamViewType: NEW_AND_OLD_IMAGES
-            
-            ResumesBucket:
-              Type: AWS::S3::Bucket
-              Properties:
-                BucketName: ${self:service}-${self:provider.stage}-resumes
-                CorsConfiguration:
-                  CorsRules:
-                    - AllowedHeaders:
-                        - '*'
-                      AllowedMethods:
-                        - GET
-                        - PUT
-                        - POST
-                        - DELETE
-                        - HEAD
-                      AllowedOrigins:
-                        - '*'
-                      MaxAge: 3000
-        EOL
-    
-    - name: Create serverless entry point
+    - name: Create Lambda handler
       run: |
         mkdir -p src
-        cat > src/serverless.js << 'EOL'
-        const serverless = require('serverless-http');
+        cat > src/lambda.js << 'EOL'
         const app = require('./app');
-
-        // Add detailed error handling for AWS Lambda
+        const serverless = require('serverless-http');
+        
         const handler = serverless(app);
-
+        
         module.exports.handler = async (event, context) => {
           try {
             return await handler(event, context);
@@ -231,42 +89,280 @@ jobs:
         };
         EOL
     
-    - name: Set AWS deployment parameters as environment variables
+    - name: Create deployment package
       run: |
+        # Create deployment package directory
         STAGE="${{ github.event.inputs.environment || 'dev' }}"
-        # Set environment variables for the deployment
-        echo "Using environment: $STAGE"
-        echo "DB_HOST=localhost" >> $GITHUB_ENV
-        echo "DB_NAME=resume_customizer" >> $GITHUB_ENV
-        echo "DB_USER=postgres" >> $GITHUB_ENV
-        echo "DB_PASSWORD=password" >> $GITHUB_ENV
-        echo "JWT_SECRET=temp-secret-$STAGE" >> $GITHUB_ENV
-        echo "JWT_EXPIRES_IN=7d" >> $GITHUB_ENV
-        echo "STORAGE_TYPE=s3" >> $GITHUB_ENV
-        echo "AI_SERVICE_IMPLEMENTATION=n8n" >> $GITHUB_ENV
-        echo "N8N_WEBHOOK_URL=http://localhost:5678" >> $GITHUB_ENV
-        echo "N8N_WEBHOOK_PATH=/webhook/customize-resume-ai" >> $GITHUB_ENV
-        echo "N8N_TIMEOUT_MS=120000" >> $GITHUB_ENV
-        echo "N8N_MAX_RETRIES=3" >> $GITHUB_ENV
-        echo "LLM_API_KEY=test-key" >> $GITHUB_ENV
-        echo "LLM_API_BASE_URL=https://openrouter.ai/api" >> $GITHUB_ENV
-        echo "LLM_MODEL_NAME=deepseek/deepseek-r1-distill-llama-70b" >> $GITHUB_ENV
-        echo "LLM_TIMEOUT_MS=120000" >> $GITHUB_ENV
-        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
-        echo "REDIS_PORT=6379" >> $GITHUB_ENV
-        echo "REDIS_PASSWORD=" >> $GITHUB_ENV
-        echo "PUBLIC_URL=https://api-$STAGE.resume-customizer.example.com" >> $GITHUB_ENV
+        FUNCTION_NAME="resume-customizer-backend-${STAGE}-api"
+        PACKAGE_DIR="deployment-package"
+        mkdir -p $PACKAGE_DIR
         
-    - name: Deploy to AWS using Serverless - simplified approach
+        # Copy necessary files to package directory
+        cp -r src $PACKAGE_DIR/
+        cp -r node_modules $PACKAGE_DIR/
+        cp package.json $PACKAGE_DIR/
+        
+        # Create deployment zip
+        cd $PACKAGE_DIR
+        zip -r ../deployment.zip .
+        cd ..
+        
+        echo "FUNCTION_NAME=$FUNCTION_NAME" >> $GITHUB_ENV
+        echo "Created deployment package"
+    
+    - name: Check if Lambda function exists
+      run: |
+        FUNCTION_NAME="${{ env.FUNCTION_NAME }}"
+        if aws lambda get-function --function-name $FUNCTION_NAME &> /dev/null; then
+          echo "FUNCTION_EXISTS=true" >> $GITHUB_ENV
+          echo "Lambda function $FUNCTION_NAME exists, will update it"
+        else
+          echo "FUNCTION_EXISTS=false" >> $GITHUB_ENV
+          echo "Lambda function $FUNCTION_NAME does not exist, will create it"
+        fi
+    
+    - name: Create S3 Bucket for resumes
       run: |
         STAGE="${{ github.event.inputs.environment || 'dev' }}"
-        echo "Deploying to AWS $STAGE environment..."
-        # Use --verbose and disable interactivity
-        serverless deploy --stage $STAGE --verbose --no-interaction --config serverless.yml
-      
-    - name: Send deployment notification
+        BUCKET_NAME="resume-customizer-backend-${STAGE}-resumes"
+        
+        # Check if bucket exists
+        if ! aws s3api head-bucket --bucket $BUCKET_NAME 2>/dev/null; then
+          echo "Creating S3 bucket $BUCKET_NAME"
+          aws s3api create-bucket --bucket $BUCKET_NAME --region ${{ secrets.AWS_REGION }} \
+            --create-bucket-configuration LocationConstraint=${{ secrets.AWS_REGION }}
+          
+          # Add CORS configuration
+          cat > cors-config.json << 'EOL'
+          {
+            "CORSRules": [
+              {
+                "AllowedHeaders": ["*"],
+                "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                "AllowedOrigins": ["*"],
+                "MaxAgeSeconds": 3000
+              }
+            ]
+          }
+          EOL
+          
+          aws s3api put-bucket-cors --bucket $BUCKET_NAME --cors-configuration file://cors-config.json
+        else
+          echo "S3 bucket $BUCKET_NAME already exists"
+        fi
+    
+    - name: Create DynamoDB table
       run: |
         STAGE="${{ github.event.inputs.environment || 'dev' }}"
-        echo "Deployment to $STAGE completed!"
-        API_URL=$(serverless info --stage $STAGE --verbose | grep -o 'HttpApiUrl:.*' | cut -d' ' -f2 || echo "https://api-$STAGE.resume-customizer.example.com")
-        echo "API URL: $API_URL"
+        TABLE_NAME="resume-customizer-backend-${STAGE}-resumes"
+        
+        # Check if table exists
+        if ! aws dynamodb describe-table --table-name $TABLE_NAME &> /dev/null; then
+          echo "Creating DynamoDB table $TABLE_NAME"
+          aws dynamodb create-table \
+            --table-name $TABLE_NAME \
+            --attribute-definitions AttributeName=id,AttributeType=S \
+            --key-schema AttributeName=id,KeyType=HASH \
+            --billing-mode PAY_PER_REQUEST \
+            --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+        else
+          echo "DynamoDB table $TABLE_NAME already exists"
+        fi
+    
+    - name: Create IAM role for Lambda
+      if: env.FUNCTION_EXISTS == 'false'
+      run: |
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        ROLE_NAME="resume-customizer-backend-${STAGE}-lambda-role"
+        
+        # Check if role exists
+        if ! aws iam get-role --role-name $ROLE_NAME &> /dev/null; then
+          echo "Creating IAM role $ROLE_NAME"
+          
+          # Create trust policy document
+          cat > trust-policy.json << 'EOL'
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "lambda.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+              }
+            ]
+          }
+          EOL
+          
+          # Create role
+          aws iam create-role --role-name $ROLE_NAME \
+            --assume-role-policy-document file://trust-policy.json
+          
+          # Attach AWSLambdaBasicExecutionRole policy
+          aws iam attach-role-policy --role-name $ROLE_NAME \
+            --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          
+          # Create custom policy for DynamoDB and S3 access
+          cat > custom-policy.json << EOL
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:GetItem",
+                  "dynamodb:PutItem",
+                  "dynamodb:UpdateItem",
+                  "dynamodb:DeleteItem",
+                  "dynamodb:Query",
+                  "dynamodb:Scan"
+                ],
+                "Resource": "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/resume-customizer-backend-${STAGE}-resumes"
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:GetObject",
+                  "s3:PutObject",
+                  "s3:DeleteObject"
+                ],
+                "Resource": [
+                  "arn:aws:s3:::resume-customizer-backend-${STAGE}-resumes/*"
+                ]
+              }
+            ]
+          }
+          EOL
+          
+          # Attach custom policy
+          aws iam put-role-policy --role-name $ROLE_NAME \
+            --policy-name resume-customizer-backend-policy \
+            --policy-document file://custom-policy.json
+          
+          # Wait for role to propagate
+          sleep 10
+          
+          echo "ROLE_ARN=$(aws iam get-role --role-name $ROLE_NAME --query 'Role.Arn' --output text)" >> $GITHUB_ENV
+        else
+          echo "IAM role $ROLE_NAME already exists"
+          echo "ROLE_ARN=$(aws iam get-role --role-name $ROLE_NAME --query 'Role.Arn' --output text)" >> $GITHUB_ENV
+        fi
+    
+    - name: Get existing Lambda role ARN
+      if: env.FUNCTION_EXISTS == 'true'
+      run: |
+        FUNCTION_NAME="${{ env.FUNCTION_NAME }}"
+        echo "ROLE_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.Role' --output text)" >> $GITHUB_ENV
+    
+    - name: Create Lambda function
+      if: env.FUNCTION_EXISTS == 'false'
+      run: |
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        FUNCTION_NAME="${{ env.FUNCTION_NAME }}"
+        
+        # Create Lambda function
+        aws lambda create-function \
+          --function-name $FUNCTION_NAME \
+          --runtime nodejs18.x \
+          --handler src/lambda.handler \
+          --role ${{ env.ROLE_ARN }} \
+          --zip-file fileb://deployment.zip \
+          --timeout 30 \
+          --memory-size 1024 \
+          --environment "Variables={NODE_ENV=$STAGE,DB_HOST=localhost,DB_NAME=resume_customizer,DB_USER=postgres,DB_PASSWORD=password,JWT_SECRET=temp-jwt-secret-$STAGE,JWT_EXPIRES_IN=7d,STORAGE_TYPE=s3,S3_BUCKET=resume-customizer-backend-$STAGE-resumes,S3_REGION=${{ secrets.AWS_REGION }},LOCAL_STORAGE_PATH=./uploads,AI_SERVICE_IMPLEMENTATION=n8n,N8N_WEBHOOK_URL=http://localhost:5678,N8N_WEBHOOK_PATH=/webhook/customize-resume-ai,N8N_TIMEOUT_MS=120000,N8N_MAX_RETRIES=3,LLM_API_KEY=test-key,LLM_API_BASE_URL=https://openrouter.ai/api,LLM_MODEL_NAME=deepseek/deepseek-r1-distill-llama-70b,LLM_TIMEOUT_MS=120000,REDIS_HOST=localhost,REDIS_PORT=6379,REDIS_PASSWORD=,PUBLIC_URL=https://api-$STAGE.resume-customizer.example.com,FALLBACK_TO_MOCK=true}"
+    
+    - name: Update Lambda function
+      if: env.FUNCTION_EXISTS == 'true'
+      run: |
+        FUNCTION_NAME="${{ env.FUNCTION_NAME }}"
+        
+        # Update Lambda function code
+        aws lambda update-function-code \
+          --function-name $FUNCTION_NAME \
+          --zip-file fileb://deployment.zip
+        
+        # Update Lambda function configuration
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        aws lambda update-function-configuration \
+          --function-name $FUNCTION_NAME \
+          --timeout 30 \
+          --memory-size 1024 \
+          --environment "Variables={NODE_ENV=$STAGE,DB_HOST=localhost,DB_NAME=resume_customizer,DB_USER=postgres,DB_PASSWORD=password,JWT_SECRET=temp-jwt-secret-$STAGE,JWT_EXPIRES_IN=7d,STORAGE_TYPE=s3,S3_BUCKET=resume-customizer-backend-$STAGE-resumes,S3_REGION=${{ secrets.AWS_REGION }},LOCAL_STORAGE_PATH=./uploads,AI_SERVICE_IMPLEMENTATION=n8n,N8N_WEBHOOK_URL=http://localhost:5678,N8N_WEBHOOK_PATH=/webhook/customize-resume-ai,N8N_TIMEOUT_MS=120000,N8N_MAX_RETRIES=3,LLM_API_KEY=test-key,LLM_API_BASE_URL=https://openrouter.ai/api,LLM_MODEL_NAME=deepseek/deepseek-r1-distill-llama-70b,LLM_TIMEOUT_MS=120000,REDIS_HOST=localhost,REDIS_PORT=6379,REDIS_PASSWORD=,PUBLIC_URL=https://api-$STAGE.resume-customizer.example.com,FALLBACK_TO_MOCK=true}"
+    
+    - name: Create or update API Gateway
+      run: |
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        FUNCTION_NAME="${{ env.FUNCTION_NAME }}"
+        API_NAME="resume-customizer-backend-$STAGE-api"
+        
+        # Check if API exists
+        API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='$API_NAME'].ApiId" --output text)
+        
+        if [ -z "$API_ID" ]; then
+          echo "Creating new API Gateway"
+          
+          # Create HTTP API
+          API_ID=$(aws apigatewayv2 create-api \
+            --name $API_NAME \
+            --protocol-type HTTP \
+            --cors-configuration AllowOrigins='*',AllowMethods='GET,POST,PUT,DELETE,OPTIONS',AllowHeaders='Content-Type,Authorization' \
+            --query 'ApiId' --output text)
+          
+          # Create Lambda integration
+          INTEGRATION_ID=$(aws apigatewayv2 create-integration \
+            --api-id $API_ID \
+            --integration-type AWS_PROXY \
+            --integration-uri "arn:aws:lambda:${{ secrets.AWS_REGION }}:$(aws sts get-caller-identity --query 'Account' --output text):function:$FUNCTION_NAME" \
+            --payload-format-version 2.0 \
+            --query 'IntegrationId' --output text)
+          
+          # Create default route
+          aws apigatewayv2 create-route \
+            --api-id $API_ID \
+            --route-key 'ANY /{proxy+}' \
+            --target "integrations/$INTEGRATION_ID"
+          
+          # Create deployment
+          aws apigatewayv2 create-deployment \
+            --api-id $API_ID \
+            --stage-name $STAGE
+        else
+          echo "API Gateway already exists: $API_ID"
+          
+          # Update existing integration
+          INTEGRATION_ID=$(aws apigatewayv2 get-integrations \
+            --api-id $API_ID \
+            --query 'Items[0].IntegrationId' \
+            --output text)
+            
+          if [ -n "$INTEGRATION_ID" ]; then
+            aws apigatewayv2 update-integration \
+              --api-id $API_ID \
+              --integration-id $INTEGRATION_ID \
+              --integration-uri "arn:aws:lambda:${{ secrets.AWS_REGION }}:$(aws sts get-caller-identity --query 'Account' --output text):function:$FUNCTION_NAME"
+          fi
+          
+          # Create new deployment
+          aws apigatewayv2 create-deployment \
+            --api-id $API_ID \
+            --stage-name $STAGE
+        fi
+        
+        # Add permission for API Gateway to invoke Lambda
+        aws lambda add-permission \
+          --function-name $FUNCTION_NAME \
+          --statement-id "apigateway-$API_ID" \
+          --action lambda:InvokeFunction \
+          --principal apigateway.amazonaws.com \
+          --source-arn "arn:aws:execute-api:${{ secrets.AWS_REGION }}:$(aws sts get-caller-identity --query 'Account' --output text):$API_ID/*/*/*" || true
+        
+        # Get API URL
+        API_URL="https://$API_ID.execute-api.${{ secrets.AWS_REGION }}.amazonaws.com/$STAGE"
+        echo "API_URL=$API_URL" >> $GITHUB_ENV
+    
+    - name: Deployment notification
+      run: |
+        STAGE="${{ github.event.inputs.environment || 'dev' }}"
+        echo "✅ Deployment to $STAGE completed successfully!"
+        echo "🔗 API URL: ${{ env.API_URL }}"
