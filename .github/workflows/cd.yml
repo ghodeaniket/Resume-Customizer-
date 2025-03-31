@@ -66,7 +66,7 @@ jobs:
     - name: Create Lambda handler
       run: |
         mkdir -p src
-        cat > src/lambda.js << 'EOL'
+        cat > src/lambda.js << EOF
         const app = require('./app');
         const serverless = require('serverless-http');
         
@@ -87,7 +87,7 @@ jobs:
             };
           }
         };
-        EOL
+        EOF
     
     - name: Create deployment package
       run: |
@@ -133,7 +133,7 @@ jobs:
             --create-bucket-configuration LocationConstraint=${{ secrets.AWS_REGION }}
           
           # Add CORS configuration
-          cat > cors-config.json << 'EOL'
+          cat > cors-config.json << EOF
           {
             "CORSRules": [
               {
@@ -144,7 +144,7 @@ jobs:
               }
             ]
           }
-          EOL
+          EOF
           
           aws s3api put-bucket-cors --bucket $BUCKET_NAME --cors-configuration file://cors-config.json
         else
@@ -169,6 +169,11 @@ jobs:
           echo "DynamoDB table $TABLE_NAME already exists"
         fi
     
+    - name: Get AWS account ID
+      run: |
+        AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+        echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> $GITHUB_ENV
+    
     - name: Create IAM role for Lambda
       if: env.FUNCTION_EXISTS == 'false'
       run: |
@@ -180,7 +185,7 @@ jobs:
           echo "Creating IAM role $ROLE_NAME"
           
           # Create trust policy document
-          cat > trust-policy.json << 'EOL'
+          cat > trust-policy.json << EOF
           {
             "Version": "2012-10-17",
             "Statement": [
@@ -193,7 +198,7 @@ jobs:
               }
             ]
           }
-          EOL
+          EOF
           
           # Create role
           aws iam create-role --role-name $ROLE_NAME \
@@ -204,7 +209,7 @@ jobs:
             --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
           
           # Create custom policy for DynamoDB and S3 access
-          cat > custom-policy.json << EOL
+          cat > custom-policy.json << EOF
           {
             "Version": "2012-10-17",
             "Statement": [
@@ -218,7 +223,7 @@ jobs:
                   "dynamodb:Query",
                   "dynamodb:Scan"
                 ],
-                "Resource": "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/resume-customizer-backend-${STAGE}-resumes"
+                "Resource": "arn:aws:dynamodb:${{ secrets.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:table/resume-customizer-backend-${STAGE}-resumes"
               },
               {
                 "Effect": "Allow",
@@ -233,7 +238,7 @@ jobs:
               }
             ]
           }
-          EOL
+          EOF
           
           # Attach custom policy
           aws iam put-role-policy --role-name $ROLE_NAME \
@@ -313,7 +318,7 @@ jobs:
           INTEGRATION_ID=$(aws apigatewayv2 create-integration \
             --api-id $API_ID \
             --integration-type AWS_PROXY \
-            --integration-uri "arn:aws:lambda:${{ secrets.AWS_REGION }}:$(aws sts get-caller-identity --query 'Account' --output text):function:$FUNCTION_NAME" \
+            --integration-uri "arn:aws:lambda:${{ secrets.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:function:$FUNCTION_NAME" \
             --payload-format-version 2.0 \
             --query 'IntegrationId' --output text)
           
@@ -340,7 +345,7 @@ jobs:
             aws apigatewayv2 update-integration \
               --api-id $API_ID \
               --integration-id $INTEGRATION_ID \
-              --integration-uri "arn:aws:lambda:${{ secrets.AWS_REGION }}:$(aws sts get-caller-identity --query 'Account' --output text):function:$FUNCTION_NAME"
+              --integration-uri "arn:aws:lambda:${{ secrets.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:function:$FUNCTION_NAME"
           fi
           
           # Create new deployment
@@ -355,7 +360,7 @@ jobs:
           --statement-id "apigateway-$API_ID" \
           --action lambda:InvokeFunction \
           --principal apigateway.amazonaws.com \
-          --source-arn "arn:aws:execute-api:${{ secrets.AWS_REGION }}:$(aws sts get-caller-identity --query 'Account' --output text):$API_ID/*/*/*" || true
+          --source-arn "arn:aws:execute-api:${{ secrets.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:$API_ID/*/*/*" || true
         
         # Get API URL
         API_URL="https://$API_ID.execute-api.${{ secrets.AWS_REGION }}.amazonaws.com/$STAGE"
