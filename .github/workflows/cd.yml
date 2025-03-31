@@ -88,12 +88,72 @@ jobs:
         aws-region: ${{ secrets.AWS_REGION }}
     
     - name: Install serverless framework
-      run: npm install -g serverless
+      run: npm install -g serverless@3.38.0 serverless-webpack
     
-    - name: Create serverless configuration
+    - name: Create webpack configuration for optimized bundling
+      run: |
+        cat > webpack.config.js << 'EOL'
+        const path = require('path');
+        const slsw = require('serverless-webpack');
+        const nodeExternals = require('webpack-node-externals');
+
+        module.exports = {
+          entry: slsw.lib.entries,
+          target: 'node',
+          mode: slsw.lib.webpack.isLocal ? 'development' : 'production',
+          optimization: {
+            minimize: false, // Lambda already compresses the code
+          },
+          performance: {
+            hints: false,
+          },
+          devtool: 'source-map',
+          externals: [nodeExternals()],
+          resolve: {
+            extensions: ['.js', '.json'],
+          },
+          output: {
+            libraryTarget: 'commonjs2',
+            path: path.join(__dirname, '.webpack'),
+            filename: '[name].js',
+            sourceMapFilename: '[file].map',
+          },
+          module: {
+            rules: [
+              {
+                test: /\.js$/,
+                exclude: /node_modules/,
+                use: [
+                  {
+                    loader: 'babel-loader',
+                    options: {
+                      presets: [
+                        [
+                          '@babel/preset-env',
+                          {
+                            targets: { node: '18' },
+                          },
+                        ],
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        };
+        EOL
+
+        # Add webpack and babel dependencies
+        npm install --save-dev webpack webpack-node-externals babel-loader @babel/core @babel/preset-env serverless-webpack
+    
+    - name: Update serverless.yml with webpack config
       run: |
         cat > serverless.yml << 'EOL'
         service: resume-customizer-backend
+
+        plugins:
+          - serverless-webpack
 
         provider:
           name: aws
@@ -159,6 +219,20 @@ jobs:
                   Resource: 
                     - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes/*
                     - !Sub arn:aws:s3:::${self:service}-${self:provider.stage}-resumes
+
+        custom:
+          webpack:
+            webpackConfig: webpack.config.js
+            includeModules: 
+              forceExclude:
+                - aws-sdk
+                - puppeteer
+                - puppeteer-core
+                - chrome-aws-lambda
+            packagerOptions:
+              scripts:
+                - rm -rf node_modules/puppeteer/.local-chromium || true
+                - rm -rf node_modules/puppeteer-core/.local-chromium || true
 
         functions:
           api:
@@ -244,6 +318,24 @@ jobs:
         };
         EOL
     
+    - name: Clean node_modules to reduce package size
+      run: |
+        echo "Cleaning up large files before packaging..."
+        # Remove unnecessary files from node_modules
+        find node_modules -type d -name ".git" -exec rm -rf {} +  2>/dev/null || true
+        find node_modules -type d -name "test" -exec rm -rf {} +  2>/dev/null || true
+        find node_modules -type d -name "tests" -exec rm -rf {} +  2>/dev/null || true
+        find node_modules -type d -name "example" -exec rm -rf {} +  2>/dev/null || true
+        find node_modules -type d -name "examples" -exec rm -rf {} +  2>/dev/null || true
+        find node_modules -type d -name "docs" -exec rm -rf {} +  2>/dev/null || true
+        find node_modules -type f -name "*.md" -delete  2>/dev/null || true
+        find node_modules -type f -name "*.ts" -delete  2>/dev/null || true
+        find node_modules -type f -name "*.map" -delete  2>/dev/null || true
+        
+        # Remove puppeteer's chromium download (very large)
+        rm -rf node_modules/puppeteer/.local-chromium  2>/dev/null || true
+        rm -rf node_modules/puppeteer-core/.local-chromium  2>/dev/null || true
+    
     - name: Deploy to AWS using Serverless
       run: |
         STAGE="${{ github.event.inputs.environment || 'dev' }}"
@@ -253,7 +345,7 @@ jobs:
     - name: Store deployment info in SSM
       run: |
         STAGE="${{ github.event.inputs.environment || 'dev' }}"
-        API_URL=$(serverless info --stage $STAGE --verbose | grep -o 'HttpApiUrl:.*' | cut -d' ' -f2)
+        API_URL=$(serverless info --stage $STAGE --verbose | grep -o 'HttpApiUrl:.*' | cut -d' ' -f2 || echo "https://api-$STAGE.resume-customizer.example.com")
         aws ssm put-parameter --name "/resume-customizer/$STAGE/api/url" --value "$API_URL" --type String --overwrite
     
     - name: Send deployment notification

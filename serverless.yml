@@ -7,12 +7,42 @@ provider:
   stage: ${opt:stage, self:custom.defaultStage}
   environment:
     NODE_ENV: ${self:provider.stage}
-    # Add your environment variables here - these will be filled by SSM parameters
+    # Database settings
     DB_HOST: ${ssm:/resume-customizer/${self:provider.stage}/db/host, 'localhost'}
     DB_NAME: ${ssm:/resume-customizer/${self:provider.stage}/db/name, 'resume_customizer'}
     DB_USER: ${ssm:/resume-customizer/${self:provider.stage}/db/user, 'postgres'}
     DB_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/db/password, 'password'}
+    # Create a DATABASE_URL environment variable from individual parts for compatibility
+    DATABASE_URL: postgres://${ssm:/resume-customizer/${self:provider.stage}/db/user, 'postgres'}:${ssm:/resume-customizer/${self:provider.stage}/db/password, 'password'}@${ssm:/resume-customizer/${self:provider.stage}/db/host, 'localhost'}:5432/${ssm:/resume-customizer/${self:provider.stage}/db/name, 'resume_customizer'}
+    # Auth settings
     JWT_SECRET: ${ssm:/resume-customizer/${self:provider.stage}/jwt/secret, 'dev-secret'}
+    JWT_EXPIRES_IN: ${ssm:/resume-customizer/${self:provider.stage}/jwt/expires-in, '7d'}
+    # Storage settings
+    STORAGE_TYPE: ${ssm:/resume-customizer/${self:provider.stage}/storage/type, 's3'}
+    S3_BUCKET: ${self:service}-${self:provider.stage}-resumes
+    S3_REGION: ${self:provider.region}
+    LOCAL_STORAGE_PATH: ${ssm:/resume-customizer/${self:provider.stage}/storage/local-path, './uploads'}
+    # AI service implementation
+    AI_SERVICE_IMPLEMENTATION: ${ssm:/resume-customizer/${self:provider.stage}/ai/implementation, 'n8n'}
+    # N8N webhook settings
+    N8N_WEBHOOK_URL: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-url, 'http://localhost:5678'}
+    N8N_WEBHOOK_PATH: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-path, '/webhook/customize-resume-ai'}
+    N8N_TIMEOUT_MS: ${ssm:/resume-customizer/${self:provider.stage}/n8n/timeout-ms, '120000'}
+    N8N_MAX_RETRIES: ${ssm:/resume-customizer/${self:provider.stage}/n8n/max-retries, '3'}
+    # LLM API settings
+    LLM_API_KEY: ${ssm:/resume-customizer/${self:provider.stage}/llm/api-key, ''}
+    LLM_API_BASE_URL: ${ssm:/resume-customizer/${self:provider.stage}/llm/base-url, 'https://openrouter.ai/api'}
+    LLM_MODEL_NAME: ${ssm:/resume-customizer/${self:provider.stage}/llm/model-name, 'deepseek/deepseek-r1-distill-llama-70b'}
+    LLM_TIMEOUT_MS: ${ssm:/resume-customizer/${self:provider.stage}/llm/timeout-ms, '120000'}
+    # Redis settings (for Bull queue)
+    REDIS_HOST: ${ssm:/resume-customizer/${self:provider.stage}/redis/host, 'localhost'}
+    REDIS_PORT: ${ssm:/resume-customizer/${self:provider.stage}/redis/port, '6379'}
+    REDIS_PASSWORD: ${ssm:/resume-customizer/${self:provider.stage}/redis/password, ''}
+    # General settings
+    PORT: 3000
+    PUBLIC_URL: ${ssm:/resume-customizer/${self:provider.stage}/public-url, 'http://localhost:3000'}
+    # Service settings - fall back to mock implementations if needed
+    FALLBACK_TO_MOCK: ${ssm:/resume-customizer/${self:provider.stage}/fallback-to-mock, 'true'}
   iam:
     role:
       statements:
@@ -39,6 +69,44 @@ custom:
   defaultStage: dev
   defaultRegion: us-east-1
 
+# Package optimization configuration
+package:
+  individually: true
+  patterns:
+    # Include only what's needed
+    - "src/**" # Application code
+    - "!src/**/*.test.js" # Exclude test files
+    - "!src/tests/**" # Exclude test directory
+    - "!src/**/*.spec.js" # Exclude test files
+    - "package.json" # Include package.json for dependencies
+    - "!node_modules/**" # Initially exclude all node_modules
+    - "node_modules/aws-sdk/**" # AWS SDK is provided by Lambda
+    - "node_modules/@aws-sdk/**" # AWS SDK is provided by Lambda
+    - "!node_modules/aws-sdk/**" # AWS SDK is provided by Lambda
+    - "!node_modules/@aws-sdk/**" # AWS SDK is provided by Lambda
+    - "!node_modules/puppeteer/**" # Exclude puppeteer (large dependency)
+    - "!node_modules/puppeteer-core/**" # Exclude puppeteer-core
+    - "!node_modules/chrome-aws-lambda/**" # Exclude chrome-aws-lambda
+    - "!**/*.map" # Exclude source maps
+    - "!**/*.ts" # Exclude TypeScript files
+    - "!**/*.md" # Exclude markdown files
+    - "!**/*.txt" # Exclude text files
+    - "!**/.git/**" # Exclude git files
+    - "!.github/**" # Exclude GitHub Actions
+    - "!.vscode/**" # Exclude VSCode files
+    - "!coverage/**" # Exclude test coverage
+    - "!docs/**" # Exclude documentation
+    - "!**/.DS_Store" # Exclude macOS files
+    - "!**/*.log" # Exclude log files
+    - "!logs/**" # Exclude log directory
+    - "!**/.env*" # Exclude .env files
+    - "!.eslintrc*" # Exclude eslint config
+    - "!.prettierrc*" # Exclude prettier config
+    - "!jest.config.js" # Exclude jest config
+    - "!**/tsconfig.json" # Exclude TypeScript config
+    - "!**/webpack.config.js" # Exclude webpack config
+    - "!**/*.tsbuildinfo" # Exclude TypeScript build info
+
 functions:
   api:
     handler: src/serverless.handler
@@ -48,6 +116,37 @@ functions:
           method: ANY
     timeout: 30
     memorySize: 1024
+    package:
+      patterns:
+        - "src/**"
+        - "!src/**/*.test.js"
+        - "!src/tests/**"
+        - "package.json"
+        - "!node_modules/**"
+        - "node_modules/express/**"
+        - "node_modules/express-*/**"
+        - "node_modules/axios/**"
+        - "node_modules/axios-*/**"
+        - "node_modules/body-parser/**"
+        - "node_modules/cors/**"
+        - "node_modules/dotenv/**"
+        - "node_modules/dotenv-safe/**"
+        - "node_modules/helmet/**"
+        - "node_modules/joi/**"
+        - "node_modules/jsonwebtoken/**"
+        - "node_modules/marked/**"
+        - "node_modules/morgan/**"
+        - "node_modules/multer/**"
+        - "node_modules/pdf-parse/**"
+        - "node_modules/redis/**"
+        - "node_modules/sequelize/**"
+        - "node_modules/serverless-http/**"
+        - "node_modules/uuid/**"
+        - "node_modules/winston/**"
+        # Exclude large/unnecessary dependencies
+        - "!node_modules/puppeteer/**"
+        - "!node_modules/puppeteer-core/**"
+        - "!node_modules/chrome-aws-lambda/**"
 
 resources:
   Resources:

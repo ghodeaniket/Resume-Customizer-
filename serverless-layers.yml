@@ -1,0 +1,22 @@
+service: resume-customizer-layers
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+
+layers:
+  dependencies:
+    path: layer-dependencies
+    description: Common dependencies for resume customizer
+    compatibleRuntimes:
+      - nodejs18.x
+    retain: false
+
+  puppeteer:
+    path: layer-puppeteer
+    description: Puppeteer and related dependencies
+    compatibleRuntimes:
+      - nodejs18.x
+    retain: false
