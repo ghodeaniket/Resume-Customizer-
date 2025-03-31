@@ -32,7 +32,7 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci --no-audit --no-audit
+      run: npm ci --no-audit
       
     - name: Security audit (info only)
       run: npm audit --audit-level=high || echo "Security vulnerabilities found - review output above"
@@ -44,6 +44,34 @@ jobs:
     
     - name: Run tests
       run: npm run test:ci
+      env:
+        NODE_ENV: test
+        JWT_SECRET: test-jwt-secret
+        PORT: 3000
+        PUBLIC_URL: http://localhost:3000
+        # These don't matter as we're using mocks
+        # Storage settings
+        STORAGE_TYPE: s3
+        S3_BUCKET: test-bucket
+        S3_REGION: us-east-1
+        AWS_ACCESS_KEY_ID: test-key
+        AWS_SECRET_ACCESS_KEY: test-secret
+        # AI service implementation - using n8n for tests
+        AI_SERVICE_IMPLEMENTATION: n8n
+        # N8N webhook settings
+        N8N_WEBHOOK_URL: http://localhost:5678
+        N8N_WEBHOOK_PATH: /webhook/customize-resume-ai
+        N8N_TIMEOUT_MS: 30000
+        N8N_MAX_RETRIES: 3
+        # LLM API settings - dummy values for tests
+        LLM_API_KEY: test-key
+        LLM_API_BASE_URL: https://api.example.com
+        LLM_MODEL_NAME: test-model
+        LLM_TIMEOUT_MS: 30000
+        # Redis settings
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: ''
       
     - name: Run linting
       run: |
@@ -84,13 +112,23 @@ jobs:
             # Auth settings
             JWT_SECRET: ${ssm:/resume-customizer/${self:provider.stage}/jwt/secret, 'dev-secret'}
             JWT_EXPIRES_IN: ${ssm:/resume-customizer/${self:provider.stage}/jwt/expires-in, '7d'}
-            # AWS settings
-            AWS_BUCKET_NAME: ${self:service}-${self:provider.stage}-resumes
-            AWS_REGION: ${self:provider.region}
-            # The access key and secret are handled by the IAM role
+            # Storage settings
+            STORAGE_TYPE: ${ssm:/resume-customizer/${self:provider.stage}/storage/type, 's3'}
+            S3_BUCKET: ${self:service}-${self:provider.stage}-resumes
+            S3_REGION: ${self:provider.region}
+            LOCAL_STORAGE_PATH: ${ssm:/resume-customizer/${self:provider.stage}/storage/local-path, './uploads'}
+            # AI service implementation
+            AI_SERVICE_IMPLEMENTATION: ${ssm:/resume-customizer/${self:provider.stage}/ai/implementation, 'n8n'}
             # N8N webhook settings
-            N8N_WEBHOOK_URL: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-url, 'http://localhost:5678/webhook'}
-            N8N_WEBHOOK_PATH: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-path, 'customize-resume-ai'}
+            N8N_WEBHOOK_URL: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-url, 'http://localhost:5678'}
+            N8N_WEBHOOK_PATH: ${ssm:/resume-customizer/${self:provider.stage}/n8n/webhook-path, '/webhook/customize-resume-ai'}
+            N8N_TIMEOUT_MS: ${ssm:/resume-customizer/${self:provider.stage}/n8n/timeout-ms, '120000'}
+            N8N_MAX_RETRIES: ${ssm:/resume-customizer/${self:provider.stage}/n8n/max-retries, '3'}
+            # LLM API settings
+            LLM_API_KEY: ${ssm:/resume-customizer/${self:provider.stage}/llm/api-key, ''}
+            LLM_API_BASE_URL: ${ssm:/resume-customizer/${self:provider.stage}/llm/base-url, 'https://openrouter.ai/api'}
+            LLM_MODEL_NAME: ${ssm:/resume-customizer/${self:provider.stage}/llm/model-name, 'deepseek/deepseek-r1-distill-llama-70b'}
+            LLM_TIMEOUT_MS: ${ssm:/resume-customizer/${self:provider.stage}/llm/timeout-ms, '120000'}
             # Redis settings (for Bull queue)
             REDIS_HOST: ${ssm:/resume-customizer/${self:provider.stage}/redis/host, 'localhost'}
             REDIS_PORT: ${ssm:/resume-customizer/${self:provider.stage}/redis/port, '6379'}
@@ -98,9 +136,6 @@ jobs:
             # General settings
             PORT: 3000
             PUBLIC_URL: ${ssm:/resume-customizer/${self:provider.stage}/public-url, 'http://localhost:3000'}
-            # Customization settings
-            CUSTOMIZATION_TIMEOUT_MS: ${ssm:/resume-customizer/${self:provider.stage}/customization/timeout-ms, '120000'}
-            CUSTOMIZATION_MAX_RETRIES: ${ssm:/resume-customizer/${self:provider.stage}/customization/max-retries, '3'}
             # Service settings - fall back to mock implementations if needed
             FALLBACK_TO_MOCK: ${ssm:/resume-customizer/${self:provider.stage}/fallback-to-mock, 'true'}
           iam:

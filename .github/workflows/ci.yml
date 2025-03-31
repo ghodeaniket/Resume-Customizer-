@@ -38,16 +38,31 @@ jobs:
         PORT: 3000
         PUBLIC_URL: http://localhost:3000
         # These don't matter as we're using mocks
-        AWS_BUCKET_NAME: test-bucket
-        AWS_REGION: us-east-1
+        # Storage settings
+        STORAGE_TYPE: s3
+        S3_BUCKET: test-bucket
+        S3_REGION: us-east-1
         AWS_ACCESS_KEY_ID: test-key
         AWS_SECRET_ACCESS_KEY: test-secret
-        N8N_WEBHOOK_URL: http://localhost:5678/webhook
-        N8N_WEBHOOK_PATH: customize-resume-ai
+        # AI service implementation - using n8n for tests
+        AI_SERVICE_IMPLEMENTATION: n8n
+        # N8N webhook settings
+        N8N_WEBHOOK_URL: http://localhost:5678
+        N8N_WEBHOOK_PATH: /webhook/customize-resume-ai
+        N8N_TIMEOUT_MS: 30000
+        N8N_MAX_RETRIES: 3
+        # LLM API settings - dummy values for tests
+        LLM_API_KEY: test-key
+        LLM_API_BASE_URL: https://api.example.com
+        LLM_MODEL_NAME: test-model
+        LLM_TIMEOUT_MS: 30000
+        # Redis settings
         REDIS_HOST: localhost
-        REDIS_PORT: 6379
-        CUSTOMIZATION_TIMEOUT_MS: 1000
-        CUSTOMIZATION_MAX_RETRIES: 1
+        REDIS_PORT: this:6379
+        REDIS_PASSWORD: ''
+        # Replaced the deprecated settings with the new ones
+        # CUSTOMIZATION_TIMEOUT_MS: 1000
+        # CUSTOMIZATION_MAX_RETRIES: 1
     
     - name: Upload test coverage
       uses: actions/upload-artifact@v4
