@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Node.js
+node_modules
+npm-debug.log
+coverage
+.nyc_output
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+
+# Test files
+__tests__
+__mocks__
+tests
+test
+jest.config.js
+
+# Other unnecessary files
+.DS_Store
+.vscode
+*.md
+LICENSE
+.github
